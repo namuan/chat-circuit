@@ -22,8 +22,6 @@ class FormWidget(QGraphicsWidget):
 
         # Create and add header
         self.header = HeaderWidget()
-        self.header.cloneRequested.connect(self.cloneForm)
-        self.header.deleteRequested.connect(self.deleteForm)
         main_layout.addItem(self.header)
 
         # Create form layout
@@ -56,6 +54,27 @@ class FormWidget(QGraphicsWidget):
 
         # Add form layout to main layout
         main_layout.addItem(form_layout)
+
+        # Create bottom buttons layout
+        bottom_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
+
+        # Create Clone and Delete buttons
+        clone_button = QGraphicsProxyWidget()
+        clone_button_widget = QPushButton("Clone")
+        clone_button_widget.clicked.connect(self.cloneForm)
+        clone_button.setWidget(clone_button_widget)
+
+        delete_button = QGraphicsProxyWidget()
+        delete_button_widget = QPushButton("Delete")
+        delete_button_widget.clicked.connect(self.deleteForm)
+        delete_button.setWidget(delete_button_widget)
+
+        # Add buttons to bottom layout
+        bottom_layout.addItem(clone_button)
+        bottom_layout.addItem(delete_button)
+
+        # Add bottom layout to main layout
+        main_layout.addItem(bottom_layout)
 
         # Set the layout for this widget
         self.setLayout(main_layout)
