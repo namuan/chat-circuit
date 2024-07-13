@@ -1,9 +1,10 @@
 import random
+from datetime import datetime
 
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import QGraphicsWidget, QGraphicsLinearLayout, QGraphicsItem, QMessageBox, QGraphicsProxyWidget, \
-    QLabel, QLineEdit, QPushButton
+    QLineEdit, QPushButton, QTextEdit
 
 from header_widget import HeaderWidget
 from link_line import LinkLine
@@ -25,36 +26,39 @@ class FormWidget(QGraphicsWidget):
         self.header = HeaderWidget()
         main_layout.addItem(self.header)
 
-        # Create form layout
-        form_layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
+        # Create chat layout
+        chat_layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
 
-        # Create form elements and their proxies
-        name_label = QGraphicsProxyWidget()
-        name_label.setWidget(QLabel("Name:"))
+        # Conversation area
+        self.conversation_area = QGraphicsProxyWidget()
+        conversation_widget = QTextEdit()
+        conversation_widget.setReadOnly(True)
+        conversation_widget.setStyleSheet("background-color: white; border: 1px solid #ccc;")
+        self.conversation_area.setWidget(conversation_widget)
+        chat_layout.addItem(self.conversation_area)
 
-        self.name_input = QGraphicsProxyWidget()
-        self.name_input.setWidget(QLineEdit())
+        # Input area
+        input_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
+        self.input_box = QGraphicsProxyWidget()
+        self.input_box.setWidget(QLineEdit())
+        input_layout.addItem(self.input_box)
 
-        email_label = QGraphicsProxyWidget()
-        email_label.setWidget(QLabel("Email:"))
+        self.send_button = QGraphicsProxyWidget()
+        send_button_widget = QPushButton("Send")
+        send_button_widget.clicked.connect(self.send_message)
+        self.send_button.setWidget(send_button_widget)
+        input_layout.addItem(self.send_button)
 
-        self.email_input = QGraphicsProxyWidget()
-        self.email_input.setWidget(QLineEdit())
-
-        submit_button = QGraphicsProxyWidget()
+        self.submit_button = QGraphicsProxyWidget()
         submit_button_widget = QPushButton("Submit")
         submit_button_widget.clicked.connect(self.submitForm)
-        submit_button.setWidget(submit_button_widget)
+        self.submit_button.setWidget(submit_button_widget)
+        input_layout.addItem(self.submit_button)
 
-        # Add form elements to form layout
-        form_layout.addItem(name_label)
-        form_layout.addItem(self.name_input)
-        form_layout.addItem(email_label)
-        form_layout.addItem(self.email_input)
-        form_layout.addItem(submit_button)
+        chat_layout.addItem(input_layout)
 
         # Add form layout to main layout
-        main_layout.addItem(form_layout)
+        main_layout.addItem(chat_layout)
 
         # Create bottom buttons layout
         bottom_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
@@ -79,6 +83,22 @@ class FormWidget(QGraphicsWidget):
 
         # Set the layout for this widget
         self.setLayout(main_layout)
+
+    def send_message(self):
+        input_widget = self.input_box.widget()
+        message = input_widget.text()
+        if message:
+            self.add_message(message, is_user=True)
+            input_widget.clear()
+            # Simulate AI response (you'd replace this with actual AI integration)
+            self.add_message("I received your message: " + message, is_user=False)
+
+    def add_message(self, message, is_user=False):
+        conversation_widget = self.conversation_area.widget()
+        timestamp = datetime.now().strftime("[%d/%m/%Y %H:%M:%S]")
+        prefix = "•" if is_user else "🤖"
+        formatted_message = f"{timestamp} {prefix}: {message}\n"
+        conversation_widget.append(formatted_message)
 
     def paint(self, painter, option, widget):
         # Draw a background for the entire form
@@ -143,8 +163,7 @@ class FormWidget(QGraphicsWidget):
         message = "Form submitted with the following data:\n\n"
         for i, data in enumerate(form_data):
             message += f"Form {i + 1}:\n"
-            message += f"Name: {data['name']}\n"
-            message += f"Email: {data['email']}\n\n"
+            message += f"Context: {data['context']}\n"
         QMessageBox.information(None, "Form Submitted", message)
 
     def gatherFormData(self):
@@ -152,8 +171,7 @@ class FormWidget(QGraphicsWidget):
         current_form = self
         while current_form:
             form_data = {
-                "name": current_form.name_input.widget().text(),
-                "email": current_form.email_input.widget().text(),
+                "context": current_form.conversation_area.widget().toPlainText(),
             }
             data.append(form_data)
             current_form = current_form.parent_form
