@@ -17,6 +17,7 @@ class CreateFormCommand(Command):
         self.parent_form = parent_form
         self.created_form = None
         self.position = position
+        self.link_line = None
 
     def execute(self):
         from form_widget import FormWidget
@@ -27,18 +28,20 @@ class CreateFormCommand(Command):
             self.created_form.setPos(self.position)
         if self.parent_form:
             self.parent_form.child_forms.append(self.created_form)
-            link_line = LinkLine(self.parent_form, self.created_form)
-            self.scene.addItem(link_line)
-            self.created_form.link_line = link_line
+            self.link_line = LinkLine(self.parent_form, self.created_form)
+            self.scene.addItem(self.link_line)
+            self.created_form.link_line = self.link_line
 
     def undo(self):
         if self.created_form:
-            self.scene.removeItem(self.created_form)
-            if self.parent_form:
+            if self.created_form.scene() == self.scene:
+                self.scene.removeItem(self.created_form)
+            if self.parent_form and self.created_form in self.parent_form.child_forms:
                 self.parent_form.child_forms.remove(self.created_form)
-                if self.created_form.link_line:
-                    self.scene.removeItem(self.created_form.link_line)
+            if self.link_line and self.link_line.scene() == self.scene:
+                self.scene.removeItem(self.link_line)
             self.created_form = None
+            self.link_line = None
 
 
 class DeleteFormCommand(Command):
@@ -47,18 +50,40 @@ class DeleteFormCommand(Command):
         self.parent_form = form.parent_form
         self.child_forms = form.child_forms[:]
         self.link_line = form.link_line
+        self.scene = form.scene()
+        self.pos = form.pos()
+        self.deleted_subtree = []
 
     def execute(self):
-        self.form.deleteForm()
+        self.deleted_subtree = self._delete_subtree(self.form)
+        if self.parent_form and self.form in self.parent_form.child_forms:
+            self.parent_form.child_forms.remove(self.form)
 
     def undo(self):
-        self.form.scene().addItem(self.form)
+        self._restore_subtree(self.deleted_subtree)
         if self.parent_form:
             self.parent_form.child_forms.append(self.form)
-        self.form.child_forms = self.child_forms
-        if self.link_line:
-            self.form.scene().addItem(self.link_line)
-            self.form.link_line = self.link_line
+
+    def _delete_subtree(self, form):
+        deleted = []
+        for child in form.child_forms[:]:
+            deleted.extend(self._delete_subtree(child))
+
+        if form.scene() == self.scene:
+            self.scene.removeItem(form)
+        if form.link_line and form.link_line.scene() == self.scene:
+            self.scene.removeItem(form.link_line)
+
+        deleted.append((form, form.pos(), form.link_line))
+        return deleted
+
+    def _restore_subtree(self, deleted_items):
+        for form, pos, link_line in reversed(deleted_items):
+            self.scene.addItem(form)
+            form.setPos(pos)
+            if link_line:
+                self.scene.addItem(link_line)
+                form.link_line = link_line
 
 
 class MoveFormCommand(Command):

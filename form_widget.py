@@ -127,21 +127,9 @@ class FormWidget(QGraphicsWidget):
             form.setPos(new_x, new_y)
 
     def deleteForm(self):
-        # Remove this form from its parent's child_forms list
-        if self.parent_form:
-            self.parent_form.child_forms.remove(self)
-
-        # Recursively delete all child forms
-        for child in self.child_forms[:]:  # Create a copy of the list to iterate over
-            child.deleteForm()
-
-        # Remove the link line connecting this form to its parent
-        if self.link_line:
-            self.scene().removeItem(self.link_line)
-            self.link_line = None
-
-        # Remove this form from the scene
-        self.scene().removeItem(self)
+        from commands import DeleteFormCommand
+        command = DeleteFormCommand(self)
+        self.scene().command_invoker.execute(command)
 
     def updateLinkLines(self):
         if self.link_line:
