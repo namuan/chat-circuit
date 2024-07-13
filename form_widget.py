@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QGraphicsWidget, QGraphicsLinearLayout, QGraphicsIte
     QLabel, QLineEdit, QPushButton
 
 from header_widget import HeaderWidget
+from link_line import LinkLine
 
 
 class FormWidget(QGraphicsWidget):
@@ -157,3 +158,29 @@ class FormWidget(QGraphicsWidget):
             data.append(form_data)
             current_form = current_form.parent_form
         return reversed(data)  # Reverse to get parent data first
+
+    def to_dict(self):
+        return {
+            'pos_x': self.pos().x(),
+            'pos_y': self.pos().y(),
+            'name': self.name_input.widget().text(),
+            'email': self.email_input.widget().text(),
+            'children': [child.to_dict() for child in self.child_forms]
+        }
+
+    @classmethod
+    def from_dict(cls, data, scene, parent=None):
+        form = cls(parent)
+        form.setPos(QPointF(data['pos_x'], data['pos_y']))
+        form.name_input.widget().setText(data['name'])
+        form.email_input.widget().setText(data['email'])
+        scene.addItem(form)
+
+        for child_data in data['children']:
+            child = cls.from_dict(child_data, scene, form)
+            form.child_forms.append(child)
+            link_line = LinkLine(form, child)
+            scene.addItem(link_line)
+            child.link_line = link_line
+
+        return form
