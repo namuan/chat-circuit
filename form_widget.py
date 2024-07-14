@@ -32,8 +32,9 @@ class FormWidget(QGraphicsWidget):
         main_layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
 
         # Create and add header
-        self.header = HeaderWidget()
+        self.header = HeaderWidget(self.model)
         main_layout.addItem(self.header)
+        self.header.update_model_name()
 
         # Create chat layout
         chat_layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
@@ -254,7 +255,8 @@ class FormWidget(QGraphicsWidget):
             'pos_y': self.pos().y(),
             'input': self.input_box.widget().text(),
             'context': self.conversation_area.widget().toPlainText(),
-            'children': [child.to_dict() for child in self.child_forms]
+            'children': [child.to_dict() for child in self.child_forms],
+            'model': self.model,
         }
 
     @classmethod
@@ -263,6 +265,9 @@ class FormWidget(QGraphicsWidget):
         form.setPos(QPointF(data['pos_x'], data['pos_y']))
         form.input_box.widget().setText(data['input'])
         form.conversation_area.widget().setPlainText(data['context'])
+        if 'model' in data:
+            form.model = data['model']
+            form.header.update_model_name()
         scene.addItem(form)
 
         for child_data in data['children']:
