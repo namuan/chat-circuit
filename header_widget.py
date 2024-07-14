@@ -1,9 +1,13 @@
-from PyQt6.QtWidgets import QGraphicsWidget, QGraphicsProxyWidget, QProgressBar, QLabel
-from PyQt6.QtCore import Qt, QTimer, QRectF
+from PyQt6.QtWidgets import QGraphicsWidget, QGraphicsProxyWidget, QProgressBar, QLabel, QComboBox
+from PyQt6.QtCore import Qt, QTimer, QRectF, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush, QFont
+
+from models import LLM_MODELS
 
 
 class HeaderWidget(QGraphicsWidget):
+    model_changed = pyqtSignal(str)
+
     def __init__(self, model_name):
         super().__init__()
 
@@ -40,14 +44,32 @@ class HeaderWidget(QGraphicsWidget):
         self.progress_bar.setWidget(progress_bar_widget)
         self.progress_bar.hide()
 
-        # Create model label
-        model_label_widget = QLabel()
-        model_label_widget.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        model_label_widget.setStyleSheet("color: #333; font-weight: bold;")
-        model_label_widget.setFont(QFont("Arial", 10))
+        # Create model dropdown
+        model_dropdown_widget = QComboBox()
+        model_dropdown_widget.addItems(LLM_MODELS)
+        model_dropdown_widget.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                padding: 1px 18px 1px 3px;
+                min-width: 6em;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 15px;
+                border-left-width: 1px;
+                border-left-color: #ccc;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+        """)
+        model_dropdown_widget.setFont(QFont("Arial", 10))
+        model_dropdown_widget.currentTextChanged.connect(self.on_model_changed)
 
-        self.model_label = QGraphicsProxyWidget(self)
-        self.model_label.setWidget(model_label_widget)
+        self.model_dropdown = QGraphicsProxyWidget(self)
+        self.model_dropdown.setWidget(model_dropdown_widget)
 
         self.is_initialized = True
         self.updateWidgetGeometry()
@@ -56,8 +78,8 @@ class HeaderWidget(QGraphicsWidget):
         if self.is_initialized:
             header_rect = self.boundingRect()
 
-            # Position the model label
-            self.model_label.setGeometry(QRectF(5, 5, header_rect.width() - 10, 20))
+            # Position the model dropdown
+            self.model_dropdown.setGeometry(QRectF(5, 5, header_rect.width() - 10, 20))
 
             # Position the progress bar at the bottom
             self.progress_bar.setGeometry(QRectF(0, header_rect.height() - 10, header_rect.width(), 10))
@@ -82,6 +104,10 @@ class HeaderWidget(QGraphicsWidget):
         if self.is_initialized and self.progress_bar:
             self.progress_bar.hide()
 
+    def on_model_changed(self, new_model):
+        self.model_name = new_model
+        self.model_changed.emit(new_model)
+
     def update_model_name(self):
-        if self.is_initialized:
-            self.model_label.widget().setText(f"Model: {self.model_name}")
+        if self.is_initialized and self.model_dropdown:
+            self.model_dropdown.widget().setCurrentText(self.model_name)

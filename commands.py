@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from models import DEFAULT_LLM_MODEL
+
 
 class Command(ABC):
     @abstractmethod
@@ -12,9 +14,10 @@ class Command(ABC):
 
 
 class CreateFormCommand(Command):
-    def __init__(self, scene, parent_form=None, position=None):
+    def __init__(self, scene, parent_form=None, position=None, model=DEFAULT_LLM_MODEL):
         self.scene = scene
         self.parent_form = parent_form
+        self.model = model
         self.created_form = None
         self.position = position
         self.link_line = None
@@ -22,7 +25,7 @@ class CreateFormCommand(Command):
     def execute(self):
         from form_widget import FormWidget
         from link_line import LinkLine
-        self.created_form = FormWidget(parent=self.parent_form)
+        self.created_form = FormWidget(parent=self.parent_form, model=self.model)
         self.scene.addItem(self.created_form)
         if self.position:
             self.created_form.setPos(self.position)

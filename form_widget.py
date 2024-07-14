@@ -14,10 +14,10 @@ active_workers = 0
 
 
 class FormWidget(QGraphicsWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, model=None):
         super().__init__()
         # LLM
-        self.model = "openchat"
+        self.model = model
         self.system_message = "You are a helpful assistant."
 
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
@@ -33,6 +33,8 @@ class FormWidget(QGraphicsWidget):
 
         # Create and add header
         self.header = HeaderWidget(self.model)
+        self.header.model_changed.connect(self.on_model_changed)
+        self.header.setZValue(1)
         main_layout.addItem(self.header)
         self.header.update_model_name()
 
@@ -154,7 +156,7 @@ class FormWidget(QGraphicsWidget):
         # Determine the new position (bottom right of the parent)
         clone_pos = self.pos() + QPointF(form_width + random_offset_x, form_height + random_offset_y)
 
-        command = CreateFormCommand(self.scene(), self, clone_pos)
+        command = CreateFormCommand(self.scene(), self, clone_pos, self.model)
         self.scene().command_invoker.execute(command)
 
     def adjustFormPosition(self, form):
@@ -219,6 +221,9 @@ class FormWidget(QGraphicsWidget):
         self.submit_button.widget().setEnabled(True)
         self.submit_button.widget().setText("Submit")
 
+    def on_model_changed(self, new_model):
+        self.model = new_model
+
     def handle_update(self, text):
         self.stop_processing_indicator()
         self.update_answer(text)
@@ -261,7 +266,7 @@ class FormWidget(QGraphicsWidget):
 
     @classmethod
     def from_dict(cls, data, scene, parent=None):
-        form = cls(parent)
+        form = cls(parent, model=data['model'])
         form.setPos(QPointF(data['pos_x'], data['pos_y']))
         form.input_box.widget().setText(data['input'])
         form.conversation_area.widget().setPlainText(data['context'])
