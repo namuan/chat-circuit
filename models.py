@@ -19,4 +19,4 @@ def load_models_from_config(config_file="models.conf"):
 
 
 LLM_MODELS = load_models_from_config()
-DEFAULT_LLM_MODEL = LLM_MODELS[4] if len(LLM_MODELS) > 4 else LLM_MODELS[-1]
+DEFAULT_LLM_MODEL = LLM_MODELS[0]
