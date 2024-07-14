@@ -1,7 +1,7 @@
 import random
 
-from PyQt6.QtCore import QPointF, Qt, QThreadPool, QTimer
-from PyQt6.QtGui import QBrush, QColor, QKeyEvent
+from PyQt6.QtCore import QPointF, Qt, QThreadPool, QTimer, QSize
+from PyQt6.QtGui import QBrush, QColor, QKeyEvent, QIcon
 from PyQt6.QtWidgets import (
     QGraphicsItem,
     QGraphicsLinearLayout,
@@ -19,6 +19,11 @@ from worker import Worker
 
 thread_pool = QThreadPool()
 active_workers = 0
+
+
+def create_svg_icon(file_path):
+    icon = QIcon(file_path)
+    return icon
 
 
 class FormWidget(QGraphicsWidget):
@@ -84,13 +89,21 @@ class FormWidget(QGraphicsWidget):
 
         # Create Clone and Delete buttons
         clone_button = QGraphicsProxyWidget()
-        clone_button_widget = QPushButton("Clone")
+        clone_button_widget = QPushButton()
+        clone_icon = create_svg_icon("resources/fork.svg")
+        clone_button_widget.setIcon(clone_icon)
+        clone_button_widget.setIconSize(QSize(24, 24))
+        clone_button_widget.setToolTip("Fork")
         clone_button_widget.clicked.connect(self.cloneForm)
         clone_button.setWidget(clone_button_widget)
         bottom_layout.addItem(clone_button)
 
         delete_button = QGraphicsProxyWidget()
-        delete_button_widget = QPushButton("Delete")
+        delete_button_widget = QPushButton()
+        delete_icon = create_svg_icon("resources/delete.svg")
+        delete_button_widget.setIcon(delete_icon)
+        delete_button_widget.setIconSize(QSize(24, 24))
+        delete_button_widget.setToolTip("Delete")
         delete_button_widget.clicked.connect(self.deleteForm)
         delete_button.setWidget(delete_button_widget)
         bottom_layout.addItem(delete_button)

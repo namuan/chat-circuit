@@ -57,7 +57,6 @@ class HeaderWidget(QGraphicsWidget):
         model_dropdown_widget.setStyleSheet(
             """
             QComboBox {
-                border: 1px solid #ccc;
                 border-radius: 3px;
                 padding: 1px 18px 1px 3px;
                 min-width: 6em;
@@ -66,15 +65,10 @@ class HeaderWidget(QGraphicsWidget):
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
                 width: 15px;
-                border-left-width: 1px;
-                border-left-color: #ccc;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
             }
         """
         )
-        model_dropdown_widget.setFont(QFont("Arial", 10))
+        model_dropdown_widget.setFont(QFont("Arial", 14))
         model_dropdown_widget.currentTextChanged.connect(self.on_model_changed)
 
         self.model_dropdown = QGraphicsProxyWidget(self)
