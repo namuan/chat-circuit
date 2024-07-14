@@ -49,32 +49,18 @@ class FormWidget(QGraphicsWidget):
         self.conversation_area.setWidget(conversation_widget)
         chat_layout.addItem(self.conversation_area)
 
-        # Input area
-        input_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
-
         # Input box
         self.input_box = QGraphicsProxyWidget()
         self.input_line_edit = QLineEdit()
+        self.input_line_edit.setStyleSheet("padding: 1;")
+        self.input_line_edit.setPlaceholderText("Prompt (and press enter)")
         self.input_line_edit.setMinimumHeight(30)  # Increase minimum height
         self.input_line_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.input_line_edit.returnPressed.connect(self.submitForm)
         self.input_box.setWidget(self.input_line_edit)
         self.input_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        input_layout.addItem(self.input_box)
 
-        # Submit button
-        self.submit_button = QGraphicsProxyWidget()
-        submit_button_widget = QPushButton("Submit")
-        submit_button_widget.clicked.connect(self.submitForm)
-        self.submit_button.setWidget(submit_button_widget)
-        input_layout.addItem(self.submit_button)
-
-        # Set stretch factors to make input box wider than button
-        input_layout.setStretchFactor(self.input_box, 3)
-        input_layout.setStretchFactor(self.submit_button, 1)
-
-        input_layout.addItem(self.submit_button)
-        chat_layout.addItem(input_layout)
+        chat_layout.addItem(self.input_box)
 
         # Add form layout to main layout
         main_layout.addItem(chat_layout)
@@ -104,7 +90,6 @@ class FormWidget(QGraphicsWidget):
         self.setLayout(main_layout)
 
     def setFocusToInput(self):
-        # This method will be called after the widget is fully initialized
         self.input_line_edit.setFocus()
 
     def paint(self, painter, option, widget):
@@ -213,13 +198,9 @@ class FormWidget(QGraphicsWidget):
 
     def start_processing_indicator(self):
         self.header.start_processing()
-        self.submit_button.widget().setEnabled(False)
-        self.submit_button.widget().setText("...")
 
     def stop_processing_indicator(self):
         self.header.stop_processing()
-        self.submit_button.widget().setEnabled(True)
-        self.submit_button.widget().setText("Submit")
 
     def on_model_changed(self, new_model):
         self.model = new_model
