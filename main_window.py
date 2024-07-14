@@ -3,7 +3,7 @@ import os
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeySequence, QAction
-from PyQt6.QtWidgets import QGraphicsScene
+from PyQt6.QtWidgets import QGraphicsScene, QFileDialog
 from PyQt6.QtWidgets import QMainWindow, QGraphicsView
 
 from command_invoker import CommandInvoker
@@ -67,7 +67,7 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(redo_action)
 
     def save_state(self):
-        file_name = 'app.json'
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save File", "", "JSON Files (*.json)")
         state = []
         for item in self.scene.items():
             if isinstance(item, FormWidget) and not item.parent_form:
@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
             json.dump(state, f, indent=2)
 
     def load_state(self):
-        file_name = 'app.json'
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open File", "", "JSON Files (*.json)")
         if os.path.exists(file_name):
             with open(file_name, 'r') as f:
                 state = json.load(f)
