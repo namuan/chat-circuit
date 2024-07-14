@@ -2,7 +2,7 @@ import json
 import os
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtGui import QAction, QKeySequence, QTransform
 from PyQt6.QtWidgets import QFileDialog, QGraphicsScene, QGraphicsView, QMainWindow
 
 from command_invoker import CommandInvoker
@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
         self.view = QGraphicsView(self.scene)
         self.setCentralWidget(self.view)
 
+        self.zoom_factor = 1.0
         self.create_menu()
 
     def create_menu(self):
@@ -67,6 +68,24 @@ class MainWindow(QMainWindow):
         redo_action.setShortcut(QKeySequence.StandardKey.Redo)
         redo_action.triggered.connect(self.redo)
         edit_menu.addAction(redo_action)
+
+        # View menu
+        view_menu = self.menuBar().addMenu("View")
+
+        zoom_in_action = QAction("Zoom In", self)
+        zoom_in_action.setShortcut(QKeySequence.StandardKey.ZoomIn)
+        zoom_in_action.triggered.connect(self.zoom_in)
+        view_menu.addAction(zoom_in_action)
+
+        zoom_out_action = QAction("Zoom Out", self)
+        zoom_out_action.setShortcut(QKeySequence.StandardKey.ZoomOut)
+        zoom_out_action.triggered.connect(self.zoom_out)
+        view_menu.addAction(zoom_out_action)
+
+        reset_zoom_action = QAction("Reset Zoom", self)
+        reset_zoom_action.setShortcut(QKeySequence("Ctrl+0"))
+        reset_zoom_action.triggered.connect(self.reset_zoom)
+        view_menu.addAction(reset_zoom_action)
 
     def save_state(self):
         file_name, _ = QFileDialog.getSaveFileName(
@@ -99,3 +118,29 @@ class MainWindow(QMainWindow):
 
     def redo(self):
         self.scene.command_invoker.redo()
+
+    def zoom_in(self):
+        self.zoom_factor *= 1.2
+        self.update_zoom()
+
+    def zoom_out(self):
+        self.zoom_factor /= 1.2
+        self.update_zoom()
+
+    def reset_zoom(self):
+        self.zoom_factor = 1.0
+        self.update_zoom()
+
+    def update_zoom(self):
+        transform = QTransform()
+        transform.scale(self.zoom_factor, self.zoom_factor)
+        self.view.setTransform(transform)
+
+    def wheelEvent(self, event):
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            if event.angleDelta().y() > 0:
+                self.zoom_in()
+            else:
+                self.zoom_out()
+        else:
+            super().wheelEvent(event)
