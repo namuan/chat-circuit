@@ -30,7 +30,7 @@ class GraphicsScene(QGraphicsScene):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Form Editor")
+        self.setWindowTitle("Chat Circuit")
         self.setGeometry(100, 100, 800, 600)
 
         self.scene = GraphicsScene()
