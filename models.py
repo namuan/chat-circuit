@@ -1,11 +1,11 @@
 import os
 
 
-def load_models_from_config(config_file='models.conf'):
+def load_models_from_config(config_file="models.conf"):
     config_path = os.path.join(os.path.dirname(__file__), config_file)
 
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             models = [line.strip() for line in f if line.strip()]
     except FileNotFoundError:
         print(f"Config file {config_file} not found. Using default models.")

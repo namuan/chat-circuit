@@ -2,9 +2,8 @@ import json
 import os
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QKeySequence, QAction
-from PyQt6.QtWidgets import QGraphicsScene, QFileDialog
-from PyQt6.QtWidgets import QMainWindow, QGraphicsView
+from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtWidgets import QFileDialog, QGraphicsScene, QGraphicsView, QMainWindow
 
 from command_invoker import CommandInvoker
 from commands import CreateFormCommand
@@ -17,7 +16,10 @@ class GraphicsScene(QGraphicsScene):
         self.command_invoker = CommandInvoker()
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             # Create a new form when left-click + Cmd/Ctrl is pressed
             command = CreateFormCommand(self)
             self.command_invoker.execute(command)
@@ -67,19 +69,23 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(redo_action)
 
     def save_state(self):
-        file_name, _ = QFileDialog.getSaveFileName(self, "Save File", "", "JSON Files (*.json)")
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "Save File", "", "JSON Files (*.json)"
+        )
         state = []
         for item in self.scene.items():
             if isinstance(item, FormWidget) and not item.parent_form:
                 state.append(item.to_dict())
 
-        with open(file_name, 'w') as f:
+        with open(file_name, "w") as f:
             json.dump(state, f, indent=2)
 
     def load_state(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, "Open File", "", "JSON Files (*.json)")
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Open File", "", "JSON Files (*.json)"
+        )
         if os.path.exists(file_name):
-            with open(file_name, 'r') as f:
+            with open(file_name) as f:
                 state = json.load(f)
 
             self.scene.clear()

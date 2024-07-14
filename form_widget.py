@@ -1,9 +1,17 @@
 import random
 
-from PyQt6.QtCore import Qt, QPointF, QThreadPool, QTimer
+from PyQt6.QtCore import QPointF, Qt, QThreadPool, QTimer
 from PyQt6.QtGui import QBrush, QColor, QKeyEvent
-from PyQt6.QtWidgets import QGraphicsWidget, QGraphicsLinearLayout, QGraphicsItem, QGraphicsProxyWidget, \
-    QLineEdit, QPushButton, QTextEdit, QSizePolicy
+from PyQt6.QtWidgets import (
+    QGraphicsItem,
+    QGraphicsLinearLayout,
+    QGraphicsProxyWidget,
+    QGraphicsWidget,
+    QLineEdit,
+    QPushButton,
+    QSizePolicy,
+    QTextEdit,
+)
 
 from header_widget import HeaderWidget
 from link_line import LinkLine
@@ -45,7 +53,9 @@ class FormWidget(QGraphicsWidget):
         self.conversation_area = QGraphicsProxyWidget()
         conversation_widget = QTextEdit()
         conversation_widget.setReadOnly(True)
-        conversation_widget.setStyleSheet("background-color: white; border: 1px solid #ccc;")
+        conversation_widget.setStyleSheet(
+            "background-color: white; border: 1px solid #ccc;"
+        )
         self.conversation_area.setWidget(conversation_widget)
         chat_layout.addItem(self.conversation_area)
 
@@ -55,10 +65,14 @@ class FormWidget(QGraphicsWidget):
         self.input_line_edit.setStyleSheet("padding: 1;")
         self.input_line_edit.setPlaceholderText("Prompt (and press enter)")
         self.input_line_edit.setMinimumHeight(30)  # Increase minimum height
-        self.input_line_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.input_line_edit.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self.input_line_edit.returnPressed.connect(self.submitForm)
         self.input_box.setWidget(self.input_line_edit)
-        self.input_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.input_box.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
         chat_layout.addItem(self.input_box)
 
@@ -98,12 +112,18 @@ class FormWidget(QGraphicsWidget):
 
     def keyPressEvent(self, event: QKeyEvent):
         # Check for Command+C (Clone)
-        if event.key() == Qt.Key.Key_C and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        if (
+            event.key() == Qt.Key.Key_C
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self.cloneForm()
             return
 
         # Check for Command+D (Delete)
-        if event.key() == Qt.Key.Key_D and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        if (
+            event.key() == Qt.Key.Key_D
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self.deleteForm()
             return
 
@@ -112,7 +132,10 @@ class FormWidget(QGraphicsWidget):
 
     def mousePressEvent(self, event):
         self.setFocus()
-        if event.button() == Qt.MouseButton.LeftButton and self.header.boundingRect().contains(event.pos()):
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.header.boundingRect().contains(event.pos())
+        ):
             # Only start dragging if the mouse is pressed in the header area
             super().mousePressEvent(event)
         else:
@@ -139,7 +162,9 @@ class FormWidget(QGraphicsWidget):
         random_offset_y = random.randint(min_gap, min_gap * 2)
 
         # Determine the new position (bottom right of the parent)
-        clone_pos = self.pos() + QPointF(form_width + random_offset_x, form_height + random_offset_y)
+        clone_pos = self.pos() + QPointF(
+            form_width + random_offset_x, form_height + random_offset_y
+        )
 
         command = CreateFormCommand(self.scene(), self, clone_pos, self.model)
         self.scene().command_invoker.execute(command)
@@ -150,12 +175,19 @@ class FormWidget(QGraphicsWidget):
 
         # If the form is outside the scene, adjust its position
         if not scene_rect.contains(form_rect):
-            new_x = min(max(form_rect.left(), scene_rect.left()), scene_rect.right() - form_rect.width())
-            new_y = min(max(form_rect.top(), scene_rect.top()), scene_rect.bottom() - form_rect.height())
+            new_x = min(
+                max(form_rect.left(), scene_rect.left()),
+                scene_rect.right() - form_rect.width(),
+            )
+            new_y = min(
+                max(form_rect.top(), scene_rect.top()),
+                scene_rect.bottom() - form_rect.height(),
+            )
             form.setPos(new_x, new_y)
 
     def deleteForm(self):
         from commands import DeleteFormCommand
+
         command = DeleteFormCommand(self)
         self.scene().command_invoker.execute(command)
 
@@ -173,18 +205,12 @@ class FormWidget(QGraphicsWidget):
         form_data = self.gatherFormData()
         context_data = []
         for i, data in enumerate(form_data):
-            context = data['context']
+            context = data["context"]
             if context:
-                message = dict(
-                    role="user",
-                    content=context
-                )
+                message = dict(role="user", content=context)
                 context_data.append(message)
 
-        current_message = dict(
-            role="user",
-            content=self.input_box.widget().text()
-        )
+        current_message = dict(role="user", content=self.input_box.widget().text())
         context_data.append(current_message)
 
         worker = Worker(self.model, self.system_message, context_data)
@@ -237,26 +263,26 @@ class FormWidget(QGraphicsWidget):
 
     def to_dict(self):
         return {
-            'pos_x': self.pos().x(),
-            'pos_y': self.pos().y(),
-            'input': self.input_box.widget().text(),
-            'context': self.conversation_area.widget().toPlainText(),
-            'children': [child.to_dict() for child in self.child_forms],
-            'model': self.model,
+            "pos_x": self.pos().x(),
+            "pos_y": self.pos().y(),
+            "input": self.input_box.widget().text(),
+            "context": self.conversation_area.widget().toPlainText(),
+            "children": [child.to_dict() for child in self.child_forms],
+            "model": self.model,
         }
 
     @classmethod
     def from_dict(cls, data, scene, parent=None):
-        form = cls(parent, model=data['model'])
-        form.setPos(QPointF(data['pos_x'], data['pos_y']))
-        form.input_box.widget().setText(data['input'])
-        form.conversation_area.widget().setPlainText(data['context'])
-        if 'model' in data:
-            form.model = data['model']
+        form = cls(parent, model=data["model"])
+        form.setPos(QPointF(data["pos_x"], data["pos_y"]))
+        form.input_box.widget().setText(data["input"])
+        form.conversation_area.widget().setPlainText(data["context"])
+        if "model" in data:
+            form.model = data["model"]
             form.header.update_model_name()
         scene.addItem(form)
 
-        for child_data in data['children']:
+        for child_data in data["children"]:
             child = cls.from_dict(child_data, scene, form)
             form.child_forms.append(child)
             link_line = LinkLine(form, child)

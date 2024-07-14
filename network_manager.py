@@ -1,6 +1,6 @@
 import json
 
-from PyQt6.QtCore import QObject, pyqtSignal, QUrl, QByteArray
+from PyQt6.QtCore import QByteArray, QObject, QUrl, pyqtSignal
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 
 
@@ -23,10 +23,7 @@ class NetworkManager(QObject):
             formatted_messages.append({"role": "system", "content": system_message})
         formatted_messages.extend(messages)
 
-        data = {
-            "model": model,
-            "messages": formatted_messages
-        }
+        data = {"model": model, "messages": formatted_messages}
 
         # Convert data to JSON
         json_data = json.dumps(data)
@@ -48,11 +45,11 @@ class NetworkManager(QObject):
         reply.errorOccurred.connect(self.handle_error)
 
     def process_data(self, reply):
-        data = reply.readAll().data().decode('utf-8')
+        data = reply.readAll().data().decode("utf-8")
         print("<<<" + data)
         try:
             json_data = json.loads(data)
-            content = json_data['choices'][0]['message']['content']
+            content = json_data["choices"][0]["message"]["content"]
             self.data_received.emit(content)
         except (json.JSONDecodeError, KeyError, IndexError) as e:
             self.error.emit(f"Error processing response: {str(e)}")

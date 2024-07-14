@@ -1,7 +1,7 @@
 import math
 
 from PyQt6.QtCore import QPointF
-from PyQt6.QtGui import QPen, QColor, QPolygonF
+from PyQt6.QtGui import QColor, QPen, QPolygonF
 from PyQt6.QtWidgets import QGraphicsItemGroup, QGraphicsPolygonItem
 
 
@@ -39,7 +39,7 @@ class LinkLine(QGraphicsItemGroup):
         # Calculate the direction vector
         dx = child_center.x() - parent_center.x()
         dy = child_center.y() - parent_center.y()
-        length = math.sqrt(dx ** 2 + dy ** 2)
+        length = math.sqrt(dx**2 + dy**2)
 
         # Clear existing chevrons
         for chevron in self.chevrons:
@@ -60,7 +60,7 @@ class LinkLine(QGraphicsItemGroup):
         for i in range(num_chevrons):
             pos = QPointF(
                 parent_center.x() + dx * (i + 0.5) * self.chevron_spacing,
-                parent_center.y() + dy * (i + 0.5) * self.chevron_spacing
+                parent_center.y() + dy * (i + 0.5) * self.chevron_spacing,
             )
             chevron = self.createChevron(pos, angle)
             self.addToGroup(chevron)

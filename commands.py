@@ -25,6 +25,7 @@ class CreateFormCommand(Command):
     def execute(self):
         from form_widget import FormWidget
         from link_line import LinkLine
+
         self.created_form = FormWidget(parent=self.parent_form, model=self.model)
         self.scene.addItem(self.created_form)
         if self.position:

@@ -1,6 +1,11 @@
-from PyQt6.QtWidgets import QGraphicsWidget, QGraphicsProxyWidget, QProgressBar, QLabel, QComboBox
-from PyQt6.QtCore import Qt, QTimer, QRectF, pyqtSignal
-from PyQt6.QtGui import QColor, QBrush, QFont
+from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QGraphicsProxyWidget,
+    QGraphicsWidget,
+    QProgressBar,
+)
 
 from models import LLM_MODELS
 
@@ -30,7 +35,8 @@ class HeaderWidget(QGraphicsWidget):
         progress_bar_widget.setRange(0, 0)  # Set to indeterminate mode
         progress_bar_widget.setTextVisible(False)  # Hide the text
         progress_bar_widget.setFixedHeight(10)  # Make it smaller
-        progress_bar_widget.setStyleSheet("""
+        progress_bar_widget.setStyleSheet(
+            """
             QProgressBar {
                 background-color: transparent;
                 border: none;
@@ -38,7 +44,8 @@ class HeaderWidget(QGraphicsWidget):
             QProgressBar::chunk {
                 background-color: #3498db;
             }
-        """)
+        """
+        )
 
         self.progress_bar = QGraphicsProxyWidget(self)
         self.progress_bar.setWidget(progress_bar_widget)
@@ -47,7 +54,8 @@ class HeaderWidget(QGraphicsWidget):
         # Create model dropdown
         model_dropdown_widget = QComboBox()
         model_dropdown_widget.addItems(LLM_MODELS)
-        model_dropdown_widget.setStyleSheet("""
+        model_dropdown_widget.setStyleSheet(
+            """
             QComboBox {
                 border: 1px solid #ccc;
                 border-radius: 3px;
@@ -64,7 +72,8 @@ class HeaderWidget(QGraphicsWidget):
                 border-top-right-radius: 3px;
                 border-bottom-right-radius: 3px;
             }
-        """)
+        """
+        )
         model_dropdown_widget.setFont(QFont("Arial", 10))
         model_dropdown_widget.currentTextChanged.connect(self.on_model_changed)
 
@@ -82,7 +91,9 @@ class HeaderWidget(QGraphicsWidget):
             self.model_dropdown.setGeometry(QRectF(5, 5, header_rect.width() - 10, 20))
 
             # Position the progress bar at the bottom
-            self.progress_bar.setGeometry(QRectF(0, header_rect.height() - 10, header_rect.width(), 10))
+            self.progress_bar.setGeometry(
+                QRectF(0, header_rect.height() - 10, header_rect.width(), 10)
+            )
             self.update_model_name()
 
     def resizeEvent(self, event):

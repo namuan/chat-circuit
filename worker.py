@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QRunnable, pyqtSignal, QObject, QEventLoop
+from PyQt6.QtCore import QEventLoop, QObject, QRunnable, pyqtSignal
 
 from network_manager import NetworkManager
 
@@ -23,7 +23,9 @@ class Worker(QRunnable):
         network_manager.finished.connect(self.signals.finished.emit)
         network_manager.error.connect(self.signals.error.emit)
 
-        network_manager.chat_completion_request(self.model, self.messages, self.system_message)
+        network_manager.chat_completion_request(
+            self.model, self.messages, self.system_message
+        )
 
         loop = QEventLoop()
         network_manager.finished.connect(loop.quit)
