@@ -2,11 +2,34 @@
 
 ![](docs/img.png)
 
+### Features
+
 **Multi-Branch Conversations**
 Create and manage multiple conversation branches seamlessly.
 
 **Contextual Forking**
 Fork conversation branches with accurate context retention.
+
+### Running the Application
+
+To run this application, follow these steps:
+
+**Generate models configuration file**
+
+```shell
+ollama list | tail -n +2 | awk '{print $1}' > models.conf
+```
+
+**Install dependencies**
+
+```shell
+python3 -m pip install -r requirements.txt
+```
+
+**Run application**
+```shell
+python3 main.py
+```
 
 ### Model Configuration
 
