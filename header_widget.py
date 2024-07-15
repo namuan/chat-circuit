@@ -34,7 +34,7 @@ class HeaderWidget(QGraphicsWidget):
         progress_bar_widget = QProgressBar()
         progress_bar_widget.setRange(0, 0)  # Set to indeterminate mode
         progress_bar_widget.setTextVisible(False)  # Hide the text
-        progress_bar_widget.setFixedHeight(10)  # Make it smaller
+        progress_bar_widget.setFixedHeight(20)  # Make it smaller
         progress_bar_widget.setStyleSheet(
             """
             QProgressBar {

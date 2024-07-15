@@ -1,7 +1,7 @@
 import random
 
 from PyQt6.QtCore import QPointF, Qt, QThreadPool, QTimer, QSize
-from PyQt6.QtGui import QBrush, QColor, QKeyEvent, QIcon
+from PyQt6.QtGui import QBrush, QColor, QIcon
 from PyQt6.QtWidgets import (
     QGraphicsItem,
     QGraphicsLinearLayout,
@@ -123,26 +123,6 @@ class FormWidget(QGraphicsWidget):
         # Draw a background for the entire form
         painter.fillRect(self.boundingRect(), QBrush(QColor(240, 240, 240)))
 
-    def keyPressEvent(self, event: QKeyEvent):
-        # Check for Command+C (Clone)
-        if (
-            event.key() == Qt.Key.Key_C
-            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-        ):
-            self.cloneForm()
-            return
-
-        # Check for Command+D (Delete)
-        if (
-            event.key() == Qt.Key.Key_D
-            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-        ):
-            self.deleteForm()
-            return
-
-        # If the event wasn't handled, pass it to the parent class
-        super().keyPressEvent(event)
-
     def mousePressEvent(self, event):
         self.setFocus()
         if (
@@ -181,22 +161,6 @@ class FormWidget(QGraphicsWidget):
 
         command = CreateFormCommand(self.scene(), self, clone_pos, self.model)
         self.scene().command_invoker.execute(command)
-
-    def adjustFormPosition(self, form):
-        scene_rect = self.scene().sceneRect()
-        form_rect = form.sceneBoundingRect()
-
-        # If the form is outside the scene, adjust its position
-        if not scene_rect.contains(form_rect):
-            new_x = min(
-                max(form_rect.left(), scene_rect.left()),
-                scene_rect.right() - form_rect.width(),
-            )
-            new_y = min(
-                max(form_rect.top(), scene_rect.top()),
-                scene_rect.bottom() - form_rect.height(),
-            )
-            form.setPos(new_x, new_y)
 
     def deleteForm(self):
         from commands import DeleteFormCommand
@@ -245,7 +209,6 @@ class FormWidget(QGraphicsWidget):
         self.model = new_model
 
     def handle_update(self, text):
-        self.stop_processing_indicator()
         self.update_answer(text)
 
     def handle_finished(self):
