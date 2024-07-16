@@ -3,11 +3,18 @@ import os
 
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtGui import QAction, QKeySequence, QTransform, QPainter
-from PyQt6.QtWidgets import QFileDialog, QGraphicsScene, QGraphicsView, QMainWindow
+from PyQt6.QtWidgets import (
+    QFileDialog,
+    QGraphicsScene,
+    QGraphicsView,
+    QMainWindow,
+    QMessageBox,
+)
 
 from command_invoker import CommandInvoker
 from commands import CreateFormCommand
 from form_widget import FormWidget
+from state_manager import StateManager
 
 
 class GraphicsScene(QGraphicsScene):
@@ -73,11 +80,14 @@ class PanningGraphicsView(QGraphicsView):
             super().mouseReleaseEvent(event)
 
 
+APPLICATION_TITLE = "Chat Circuit"
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Chat Circuit")
-        self.setGeometry(100, 100, 800, 600)
+        self.state_manager = StateManager("deskriders", "chatcircuit")
+        self.setWindowTitle(APPLICATION_TITLE)
 
         self.scene = GraphicsScene()
         self.view = PanningGraphicsView(self.scene)
@@ -85,6 +95,7 @@ class MainWindow(QMainWindow):
 
         self.zoom_factor = 1.0
         self.create_menu()
+        self.restoreApplicationState()
 
     def create_menu(self):
         # File menu
@@ -132,9 +143,12 @@ class MainWindow(QMainWindow):
         view_menu.addAction(reset_zoom_action)
 
     def save_state(self):
-        file_name, _ = QFileDialog.getSaveFileName(
-            self, "Save File", "", "JSON Files (*.json)"
-        )
+        file_name = self.state_manager.get_last_file()
+        if not file_name:
+            file_name, _ = QFileDialog.getSaveFileName(
+                self, "Save File", "", "JSON Files (*.json)"
+            )
+
         state = []
         for item in self.scene.items():
             if isinstance(item, FormWidget) and not item.parent_form:
@@ -143,19 +157,27 @@ class MainWindow(QMainWindow):
         with open(file_name, "w") as f:
             json.dump(state, f, indent=2)
 
+        self.setWindowTitle(f"{APPLICATION_TITLE} - {file_name}")
+        self.state_manager.save_last_file(file_name)
+
     def load_state(self):
         file_name, _ = QFileDialog.getOpenFileName(
             self, "Open File", "", "JSON Files (*.json)"
         )
         if os.path.exists(file_name):
+            self.load_from_file(file_name)
+        else:
+            print(f"File {file_name} not found.")
+
+    def load_from_file(self, file_name):
+        if os.path.exists(file_name):
             with open(file_name) as f:
                 state = json.load(f)
 
-            self.scene.clear()
-            for form_data in state:
-                FormWidget.from_dict(form_data, self.scene)
-        else:
-            print(f"File {file_name} not found.")
+        self.scene.clear()
+        for form_data in state:
+            FormWidget.from_dict(form_data, self.scene)
+        self.setWindowTitle(f"{APPLICATION_TITLE} - {file_name}")
 
     def undo(self):
         self.scene.command_invoker.undo()
@@ -188,3 +210,20 @@ class MainWindow(QMainWindow):
                 self.zoom_out()
         else:
             super().wheelEvent(event)
+
+    def restoreApplicationState(self):
+        if not self.state_manager.restore_window_state(self):
+            self.showMaximized()
+
+        file_name = self.state_manager.get_last_file()
+        if file_name and isinstance(file_name, str):
+            self.load_from_file(file_name)
+        else:
+            QMessageBox.warning(
+                self, "Error", f"Failed to load the last file: {file_name}"
+            )
+
+    def closeEvent(self, event):
+        self.state_manager.save_window_state(self)
+        self.save_state()
+        super().closeEvent(event)
