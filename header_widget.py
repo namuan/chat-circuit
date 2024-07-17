@@ -1,5 +1,5 @@
 from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont
+from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
     QComboBox,
     QGraphicsProxyWidget,
@@ -33,14 +33,10 @@ class HeaderWidget(QGraphicsWidget):
         # Create progress bar
         progress_bar_widget = QProgressBar()
         progress_bar_widget.setRange(0, 0)  # Set to indeterminate mode
-        progress_bar_widget.setTextVisible(False)  # Hide the text
-        progress_bar_widget.setFixedHeight(20)  # Make it smaller
+        progress_bar_widget.setTextVisible(False)
+        progress_bar_widget.setFixedHeight(20)
         progress_bar_widget.setStyleSheet(
             """
-            QProgressBar {
-                background-color: transparent;
-                border: none;
-            }
             QProgressBar::chunk {
                 background-color: #3498db;
             }
@@ -57,18 +53,12 @@ class HeaderWidget(QGraphicsWidget):
         model_dropdown_widget.setStyleSheet(
             """
             QComboBox {
-                border-radius: 3px;
                 padding: 1px 18px 1px 3px;
                 min-width: 6em;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 15px;
+                background: darkgray;
             }
         """
         )
-        model_dropdown_widget.setFont(QFont("Arial", 14))
         model_dropdown_widget.currentTextChanged.connect(self.on_model_changed)
 
         self.model_dropdown = QGraphicsProxyWidget(self)

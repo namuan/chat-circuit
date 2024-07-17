@@ -67,7 +67,9 @@ class FormWidget(QGraphicsWidget):
         # Input box
         self.input_box = QGraphicsProxyWidget()
         self.input_line_edit = QLineEdit()
-        self.input_line_edit.setStyleSheet("padding: 1;")
+        self.input_line_edit.setStyleSheet(
+            "background-color: white;" "border: 1px solid #ccc;" "padding: 1;"
+        )
         self.input_line_edit.setPlaceholderText("Prompt (and press enter)")
         self.input_line_edit.setMinimumHeight(30)  # Increase minimum height
         self.input_line_edit.setSizePolicy(
@@ -88,25 +90,39 @@ class FormWidget(QGraphicsWidget):
         bottom_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
 
         # Create Clone and Delete buttons
-        clone_button = QGraphicsProxyWidget()
-        clone_button_widget = QPushButton()
+        clone_button_widget = QGraphicsProxyWidget()
+        clone_button = QPushButton()
+        clone_button.setStyleSheet(
+            """
+            QPushButton {
+                border: 1px solid #808080;
+            }
+        """
+        )
         clone_icon = create_svg_icon("resources/fork.svg")
-        clone_button_widget.setIcon(clone_icon)
-        clone_button_widget.setIconSize(QSize(24, 24))
-        clone_button_widget.setToolTip("Fork")
-        clone_button_widget.clicked.connect(self.cloneForm)
-        clone_button.setWidget(clone_button_widget)
-        bottom_layout.addItem(clone_button)
+        clone_button.setIcon(clone_icon)
+        clone_button.setIconSize(QSize(24, 24))
+        clone_button.setToolTip("Fork")
+        clone_button.clicked.connect(self.cloneForm)
+        clone_button_widget.setWidget(clone_button)
+        bottom_layout.addItem(clone_button_widget)
 
-        delete_button = QGraphicsProxyWidget()
-        delete_button_widget = QPushButton()
+        delete_button_widget = QGraphicsProxyWidget()
+        delete_button = QPushButton()
+        delete_button.setStyleSheet(
+            """
+            QPushButton {
+                border: 1px solid #808080;
+            }
+        """
+        )
         delete_icon = create_svg_icon("resources/delete.svg")
-        delete_button_widget.setIcon(delete_icon)
-        delete_button_widget.setIconSize(QSize(24, 24))
-        delete_button_widget.setToolTip("Delete")
-        delete_button_widget.clicked.connect(self.deleteForm)
-        delete_button.setWidget(delete_button_widget)
-        bottom_layout.addItem(delete_button)
+        delete_button.setIcon(delete_icon)
+        delete_button.setIconSize(QSize(24, 24))
+        delete_button.setToolTip("Delete")
+        delete_button.clicked.connect(self.deleteForm)
+        delete_button_widget.setWidget(delete_button)
+        bottom_layout.addItem(delete_button_widget)
 
         # Add bottom layout to main layout
         main_layout.addItem(bottom_layout)
@@ -224,7 +240,7 @@ class FormWidget(QGraphicsWidget):
 
     def update_answer(self, message):
         conversation_widget = self.conversation_area.widget()
-        conversation_widget.append(message)
+        conversation_widget.setText(message)
 
     def gatherFormData(self):
         data = []
