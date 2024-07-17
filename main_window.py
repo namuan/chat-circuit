@@ -1,8 +1,8 @@
 import json
 import os
 
-from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtGui import QAction, QKeySequence, QTransform, QPainter
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QAction, QKeySequence, QTransform
 from PyQt6.QtWidgets import (
     QFileDialog,
     QGraphicsScene,
@@ -36,50 +36,6 @@ class GraphicsScene(QGraphicsScene):
             super().mousePressEvent(event)
 
 
-class PanningGraphicsView(QGraphicsView):
-    def __init__(self, scene):
-        super().__init__(scene)
-        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-        self.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
-        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-
-        self._pan_start = QPoint()
-        self._is_panning = False
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.MiddleButton:
-            self._pan_start = event.position().toPoint()
-            self._is_panning = True
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
-            event.accept()
-        else:
-            super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if self._is_panning:
-            delta = event.position().toPoint() - self._pan_start
-            self.horizontalScrollBar().setValue(
-                self.horizontalScrollBar().value() - delta.x()
-            )
-            self.verticalScrollBar().setValue(
-                self.verticalScrollBar().value() - delta.y()
-            )
-            self._pan_start = event.position().toPoint()
-            event.accept()
-        else:
-            super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.MiddleButton:
-            self._is_panning = False
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-            event.accept()
-        else:
-            super().mouseReleaseEvent(event)
-
-
 APPLICATION_TITLE = "Chat Circuit"
 
 
@@ -90,7 +46,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APPLICATION_TITLE)
 
         self.scene = GraphicsScene()
-        self.view = PanningGraphicsView(self.scene)
+        self.view = QGraphicsView(self.scene)
         self.setCentralWidget(self.view)
 
         self.zoom_factor = 1.0
