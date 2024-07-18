@@ -22,18 +22,14 @@ class GraphicsScene(QGraphicsScene):
         super().__init__(parent)
         self.command_invoker = CommandInvoker()
 
-    def mousePressEvent(self, event):
-        if (
-            event.button() == Qt.MouseButton.LeftButton
-            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-        ):
-            # Create a new form when left-click + Cmd/Ctrl is pressed
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
             command = CreateFormCommand(self)
             self.command_invoker.execute(command)
             new_form = command.created_form
             new_form.setPos(event.scenePos())
         else:
-            super().mousePressEvent(event)
+            super().mouseDoubleClickEvent(event)
 
 
 APPLICATION_TITLE = "Chat Circuit"
