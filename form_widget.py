@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QTextEdit,
+    QGraphicsRectItem,
 )
 
 from header_widget import HeaderWidget
@@ -130,14 +131,40 @@ class FormWidget(QGraphicsWidget):
         # Set the layout for this widget
         QTimer.singleShot(0, self.setFocusToInput)
 
+        self.background_item = QGraphicsRectItem(self.boundingRect(), self)
+        self.background_item.setBrush(QBrush(QColor(240, 240, 240)))
+        self.background_item.setZValue(-1)  # Ensure it's behind other items
+
+        self.highlight_color = QColor(173, 216, 230, 150)  # Light blue with alpha 150
+        self.original_color = QColor(240, 240, 240)  # Light gray
+
+        self.highlight_timer = QTimer(self)
+        self.highlight_timer.setSingleShot(True)
+        self.highlight_timer.timeout.connect(self.remove_highlight)
+
         self.setLayout(main_layout)
+
+    def highlight(self):
+        self.background_item.setBrush(QBrush(self.highlight_color))
+        self.highlight_timer.start(1000)
+
+    def remove_highlight(self):
+        self.background_item.setBrush(QBrush(self.original_color))
+
+    def highlight_hierarchy(self):
+        # Highlight this form
+        self.highlight()
+
+        # Highlight parent form if it exists
+        if self.parent_form:
+            self.parent_form.highlight_hierarchy()
 
     def setFocusToInput(self):
         self.input_line_edit.setFocus()
 
-    def paint(self, painter, option, widget):
-        # Draw a background for the entire form
-        painter.fillRect(self.boundingRect(), QBrush(QColor(240, 240, 240)))
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.background_item.setRect(self.boundingRect())
 
     def mousePressEvent(self, event):
         self.setFocus()
@@ -211,6 +238,7 @@ class FormWidget(QGraphicsWidget):
         worker.signals.finished.connect(self.handle_finished)
         worker.signals.error.connect(self.handle_error)
 
+        self.highlight_hierarchy()
         thread_pool.start(worker)
         active_workers += 1
         self.start_processing_indicator()
