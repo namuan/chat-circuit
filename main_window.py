@@ -53,6 +53,11 @@ class MainWindow(QMainWindow):
         # File menu
         file_menu = self.menuBar().addMenu("File")
 
+        new_action = QAction("New", self)
+        new_action.setShortcut(QKeySequence.StandardKey.New)
+        new_action.triggered.connect(self.new_document)
+        file_menu.addAction(new_action)
+
         save_action = QAction("Save", self)
         save_action.setShortcut(QKeySequence.StandardKey.Save)
         save_action.triggered.connect(self.save_state)
@@ -94,6 +99,11 @@ class MainWindow(QMainWindow):
         reset_zoom_action.triggered.connect(self.reset_zoom)
         view_menu.addAction(reset_zoom_action)
 
+    def new_document(self):
+        self.state_manager.save_last_file("")
+        self.scene.clear()
+        self.save_state()
+
     def save_state(self):
         file_name = self.state_manager.get_last_file()
         if not file_name:
@@ -118,6 +128,7 @@ class MainWindow(QMainWindow):
             self, "Open File", "", "JSON Files (*.json)"
         )
         if os.path.exists(file_name):
+            self.state_manager.save_last_file(file_name)
             self.load_from_file(file_name)
         else:
             print(f"File {file_name} not found.")
