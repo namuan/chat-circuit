@@ -101,13 +101,14 @@ class MainWindow(QMainWindow):
                 self, "Save File", "", "JSON Files (*.json)"
             )
 
-        state = []
+        states = []
         for item in self.scene.items():
             if isinstance(item, FormWidget) and not item.parent_form:
-                state.append(item.to_dict())
+                states.append(item.to_dict())
 
+        document_data = dict(zoom_factor=self.zoom_factor, canvas_state=states)
         with open(file_name, "w") as f:
-            json.dump(state, f, indent=2)
+            json.dump(document_data, f, indent=2)
 
         self.setWindowTitle(f"{APPLICATION_TITLE} - {file_name}")
         self.state_manager.save_last_file(file_name)
@@ -124,10 +125,13 @@ class MainWindow(QMainWindow):
     def load_from_file(self, file_name):
         if os.path.exists(file_name):
             with open(file_name) as f:
-                state = json.load(f)
+                document_data = json.load(f)
+
+        self.zoom_factor = document_data.get("zoom_factor", self.zoom_factor)
+        self.update_zoom()
 
         self.scene.clear()
-        for form_data in state:
+        for form_data in document_data.get("canvas_state", []):
             FormWidget.from_dict(form_data, self.scene)
         self.setWindowTitle(f"{APPLICATION_TITLE} - {file_name}")
 
@@ -168,7 +172,7 @@ class MainWindow(QMainWindow):
             self.showMaximized()
 
         file_name = self.state_manager.get_last_file()
-        if file_name and isinstance(file_name, str):
+        if file_name and isinstance(file_name, str) and os.path.exists(file_name):
             self.load_from_file(file_name)
         else:
             QMessageBox.warning(
