@@ -10,6 +10,16 @@ Create and manage multiple conversation branches seamlessly.
 **Contextual Forking**
 Fork conversation branches with accurate context retention.
 
+### Editor Features
+
+**Save and Load Diagrams**
+
+**Undo and Redo**
+
+**Zoom and Pan**
+
+![](docs/view-options.png)
+
 ### Running the Application
 
 To run this application, follow these steps:
