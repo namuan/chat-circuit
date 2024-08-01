@@ -111,6 +111,9 @@ class MainWindow(QMainWindow):
                 self, "Save File", "", "JSON Files (*.json)"
             )
 
+        if not file_name:
+            return
+
         states = []
         for item in self.scene.items():
             if isinstance(item, FormWidget) and not item.parent_form:
