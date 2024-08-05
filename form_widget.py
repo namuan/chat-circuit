@@ -272,7 +272,7 @@ class FormWidget(QGraphicsWidget):
 
     def gatherFormData(self):
         data = []
-        current_form = self
+        current_form = self.parent_form
         while current_form:
             form_data = {
                 "context": current_form.conversation_area.widget().toPlainText(),
