@@ -1,4 +1,5 @@
 import random
+from collections import deque
 
 from PyQt6.QtCore import QPointF, Qt, QThreadPool, QTimer, QSize
 from PyQt6.QtGui import QBrush, QColor, QIcon
@@ -41,6 +42,10 @@ class FormWidget(QGraphicsWidget):
         self.parent_form = parent
         self.child_forms = []
         self.link_line = None
+
+        # Re-Run all form nodes
+        self.worker = None
+        self.form_chain = deque()
 
         # Create main layout
         main_layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
@@ -90,7 +95,24 @@ class FormWidget(QGraphicsWidget):
         # Create bottom buttons layout
         bottom_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
 
-        # Create Clone and Delete buttons
+        # Add buttons
+        ripple_button_widget = QGraphicsProxyWidget()
+        ripple_button = QPushButton()
+        ripple_button.setStyleSheet(
+            """
+            QPushButton {
+                border: 1px solid #808080;
+            }
+        """
+        )
+        ripple_icon = create_svg_icon("resources/ripple.svg")
+        ripple_button.setIcon(ripple_icon)
+        ripple_button.setIconSize(QSize(24, 24))
+        ripple_button.setToolTip("Re-Run")
+        ripple_button.clicked.connect(self.reRunAll)
+        ripple_button_widget.setWidget(ripple_button)
+        bottom_layout.addItem(ripple_button_widget)
+
         clone_button_widget = QGraphicsProxyWidget()
         clone_button = QPushButton()
         clone_button.setStyleSheet(
@@ -217,11 +239,31 @@ class FormWidget(QGraphicsWidget):
         for child in self.child_forms:
             child.updateLinkLines()
 
+    def allForms(self):
+        self.form_chain.appendleft(self)
+        current_form = self
+        while current_form:
+            current_form = current_form.parent_form
+            if current_form:
+                self.form_chain.appendleft(current_form)
+
+    def process_next_form(self):
+        try:
+            form = self.form_chain.popleft()
+            print(f"❓{form.input_box.widget().text().strip()}")
+            form.submitForm()
+            form.worker.signals.notify_child.connect(self.process_next_form)
+        except IndexError:
+            print("Processed all forms")
+
+    def reRunAll(self):
+        self.allForms()
+        self.process_next_form()
+
     def submitForm(self):
         if not self.input_box.widget().text().strip():  # Check if input is not empty
             return
 
-        global active_workers
         form_data = self.gatherFormData()
         context_data = []
         for i, data in enumerate(form_data):
@@ -233,21 +275,25 @@ class FormWidget(QGraphicsWidget):
         current_message = dict(role="user", content=self.input_box.widget().text())
         context_data.append(current_message)
 
-        worker = Worker(self.model, self.system_message, context_data)
-        worker.signals.update.connect(self.handle_update)
-        worker.signals.finished.connect(self.handle_finished)
-        worker.signals.error.connect(self.handle_error)
+        self.worker = Worker(self.model, self.system_message, context_data)
+        self.worker.signals.update.connect(self.handle_update)
+        self.worker.signals.finished.connect(self.handle_finished)
+        self.worker.signals.error.connect(self.handle_error)
 
         self.highlight_hierarchy()
-        thread_pool.start(worker)
-        active_workers += 1
-        self.start_processing_indicator()
+        thread_pool.start(self.worker)
+        self.start_processing()
 
-    def start_processing_indicator(self):
+    def start_processing(self):
+        global active_workers
+        active_workers += 1
         self.header.start_processing()
 
-    def stop_processing_indicator(self):
+    def stop_processing(self):
+        global active_workers
+        active_workers -= 1
         self.header.stop_processing()
+        self.worker.signals.notify_child.emit()
 
     def on_model_changed(self, new_model):
         self.model = new_model
@@ -256,14 +302,10 @@ class FormWidget(QGraphicsWidget):
         self.update_answer(text)
 
     def handle_finished(self):
-        global active_workers
-        active_workers -= 1
-        self.stop_processing_indicator()
+        self.stop_processing()
 
     def handle_error(self, error):
-        global active_workers
-        active_workers -= 1
-        self.stop_processing_indicator()
+        self.stop_processing()
         self.update_answer(f"Error occurred: {error}")
 
     def update_answer(self, message):

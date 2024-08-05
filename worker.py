@@ -6,6 +6,7 @@ from network_manager import NetworkManager
 class WorkerSignals(QObject):
     update = pyqtSignal(str)
     finished = pyqtSignal()
+    notify_child = pyqtSignal()
     error = pyqtSignal(str)
 
 
