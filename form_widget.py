@@ -147,6 +147,23 @@ class FormWidget(QGraphicsWidget):
         delete_button_widget.setWidget(delete_button)
         bottom_layout.addItem(delete_button_widget)
 
+        clone_branch_button_widget = QGraphicsProxyWidget()
+        clone_branch_button = QPushButton()
+        clone_branch_button.setStyleSheet(
+            """
+            QPushButton {
+                border: 1px solid #808080;
+            }
+        """
+        )
+        clone_branch_icon = create_svg_icon("resources/clone.svg")
+        clone_branch_button.setIcon(clone_branch_icon)
+        clone_branch_button.setIconSize(QSize(24, 24))
+        clone_branch_button.setToolTip("Clone Branch")
+        clone_branch_button.clicked.connect(self.cloneBranch)
+        clone_branch_button_widget.setWidget(clone_branch_button)
+        bottom_layout.addItem(clone_branch_button_widget)
+
         # Add bottom layout to main layout
         main_layout.addItem(bottom_layout)
 
@@ -206,6 +223,12 @@ class FormWidget(QGraphicsWidget):
             self.updateLinkLines()
         else:
             event.ignore()
+
+    def cloneBranch(self):
+        from commands import CloneBranchCommand
+
+        command = CloneBranchCommand(self.scene(), self)
+        self.scene().command_invoker.execute(command)
 
     def cloneForm(self):
         from commands import CreateFormCommand

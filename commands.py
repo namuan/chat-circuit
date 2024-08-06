@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from PyQt6.QtCore import QPointF
+
 from models import DEFAULT_LLM_MODEL
 
 
@@ -105,3 +107,56 @@ class MoveFormCommand(Command):
         self.form.setPos(self.old_pos)
         if self.form.link_line:
             self.form.link_line.updatePosition()
+
+
+class CloneBranchCommand(Command):
+    def __init__(self, scene, source_form):
+        self.scene = scene
+        self.source_form = source_form
+        self.cloned_forms = []
+        self.parent_form = None
+
+    def execute(self):
+        self.parent_form = self.source_form.parent_form
+        new_pos = self.source_form.pos() + QPointF(200, 600)  # Offset the new branch
+        self.cloned_forms = self._clone_branch(
+            self.source_form, self.parent_form, new_pos
+        )
+
+    def undo(self):
+        for form in self.cloned_forms:
+            if form.scene() == self.scene:
+                self.scene.removeItem(form)
+            if form.link_line and form.link_line.scene() == self.scene:
+                self.scene.removeItem(form.link_line)
+        if self.parent_form:
+            self.parent_form.child_forms = [
+                f for f in self.parent_form.child_forms if f not in self.cloned_forms
+            ]
+
+    def _clone_branch(self, source_form, parent_form, position):
+        from form_widget import FormWidget
+        from link_line import LinkLine
+
+        cloned_form = FormWidget(parent=parent_form, model=source_form.model)
+        cloned_form.setPos(position)
+        cloned_form.input_box.widget().setText(source_form.input_box.widget().text())
+        cloned_form.conversation_area.widget().setPlainText(
+            source_form.conversation_area.widget().toPlainText()
+        )
+
+        self.scene.addItem(cloned_form)
+
+        if parent_form:
+            parent_form.child_forms.append(cloned_form)
+            link_line = LinkLine(parent_form, cloned_form)
+            self.scene.addItem(link_line)
+            cloned_form.link_line = link_line
+
+        cloned_forms = [cloned_form]
+
+        for child in source_form.child_forms:
+            child_pos = cloned_form.pos() + (child.pos() - source_form.pos())
+            cloned_forms.extend(self._clone_branch(child, cloned_form, child_pos))
+
+        return cloned_forms
