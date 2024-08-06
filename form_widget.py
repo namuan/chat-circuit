@@ -157,7 +157,7 @@ class FormWidget(QGraphicsWidget):
         self.background_item.setBrush(QBrush(QColor(240, 240, 240)))
         self.background_item.setZValue(-1)  # Ensure it's behind other items
 
-        self.highlight_color = QColor(173, 216, 230, 150)  # Light blue with alpha 150
+        self.highlight_color = QColor(255, 165, 0, 150)  # Orange with alpha 150
         self.original_color = QColor(240, 240, 240)  # Light gray
 
         self.highlight_timer = QTimer(self)

@@ -20,6 +20,12 @@ Fork conversation branches with accurate context retention.
 
 ![](docs/view-options.png)
 
+**Re-run nodes in a branch**
+
+It is possible to re-run all the nodes in a branch after changing the prompt it any node in the list.
+
+![](docs/re-run-button.png)
+
 ### Running the Application
 
 To run this application, follow these steps:
