@@ -6,7 +6,6 @@ from PyQt6.QtGui import QAction, QKeySequence, QTransform
 from PyQt6.QtWidgets import (
     QFileDialog,
     QGraphicsScene,
-    QGraphicsView,
     QMainWindow,
     QMessageBox,
 )
@@ -15,6 +14,7 @@ from command_invoker import CommandInvoker
 from commands import CreateFormCommand
 from form_widget import FormWidget
 from state_manager import StateManager
+from views import CustomGraphicsView
 
 
 class GraphicsScene(QGraphicsScene):
@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APPLICATION_TITLE)
 
         self.scene = GraphicsScene()
-        self.view = QGraphicsView(self.scene)
+        self.view = CustomGraphicsView(self.scene)
         self.setCentralWidget(self.view)
 
         self.zoom_factor = 1.0
