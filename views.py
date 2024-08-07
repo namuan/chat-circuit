@@ -11,6 +11,7 @@ class CustomGraphicsView(QGraphicsView):
 
         # Create instruction text item
         self.instruction_text = "Command/Ctrl + Click to create node"
+        self.instruction_text += "\nDrag top bar on node to move"
         self.instruction_font = QFont("Arial", 16, QFont.Weight.Bold)
         self.text_color = QColor(100, 100, 100, 255)
         self.bg_color = QColor(0, 0, 0, 50)
