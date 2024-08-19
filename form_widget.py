@@ -252,9 +252,11 @@ class FormWidget(QGraphicsWidget):
 
         # Construct the prompt for generating follow-up questions
         prompt = (
-            "Based on the conversation above, "
-            "please generate 3 follow-up questions. "
+            "Based on the conversation above,"
+            "please generate 3 follow-up questions."
             "Keep them concise and relevant to the topic."
+            "Just list the 3 questions without any other text."
+            "Do not prefix the questions with a number."
         )
         context_data.append(dict(role="user", content=prompt))
 
@@ -276,7 +278,7 @@ class FormWidget(QGraphicsWidget):
             x_offset = form_width + 200
             for i, question in enumerate(questions):
                 if question.strip():
-                    y_offset = i * (form_height + 100)
+                    y_offset = i * (form_height + 50)
                     new_pos = self.pos() + QPointF(x_offset, y_offset)
                     from commands import CreateFormCommand
 
@@ -400,7 +402,7 @@ class FormWidget(QGraphicsWidget):
 
     def gatherFormData(self):
         data = []
-        current_form = self.parent_form
+        current_form = self.parent_form or self
         while current_form:
             form_data = {
                 "context": current_form.conversation_area.widget().toPlainText(),
