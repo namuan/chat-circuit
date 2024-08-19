@@ -1,7 +1,7 @@
 import random
 from collections import deque
 
-from PyQt6.QtCore import QPointF, Qt, QThreadPool, QTimer, QSize
+from PyQt6.QtCore import QPointF, Qt, QThreadPool, QTimer
 from PyQt6.QtGui import QBrush, QColor, QIcon
 from PyQt6.QtWidgets import (
     QGraphicsItem,
@@ -9,12 +9,12 @@ from PyQt6.QtWidgets import (
     QGraphicsProxyWidget,
     QGraphicsWidget,
     QLineEdit,
-    QPushButton,
     QSizePolicy,
     QTextEdit,
     QGraphicsRectItem,
 )
 
+from buttons_bar import add_buttons
 from header_widget import HeaderWidget
 from link_line import LinkLine
 from worker import Worker
@@ -93,93 +93,7 @@ class FormWidget(QGraphicsWidget):
         main_layout.addItem(chat_layout)
 
         # Create bottom buttons layout
-        bottom_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
-
-        # Add buttons
-        ripple_button_widget = QGraphicsProxyWidget()
-        ripple_button = QPushButton()
-        ripple_button.setStyleSheet(
-            """
-            QPushButton {
-                border: 1px solid #808080;
-            }
-        """
-        )
-        ripple_icon = create_svg_icon("resources/ripple.svg")
-        ripple_button.setIcon(ripple_icon)
-        ripple_button.setIconSize(QSize(24, 24))
-        ripple_button.setToolTip("Re-Run")
-        ripple_button.clicked.connect(self.reRunAll)
-        ripple_button_widget.setWidget(ripple_button)
-        bottom_layout.addItem(ripple_button_widget)
-
-        clone_button_widget = QGraphicsProxyWidget()
-        clone_button = QPushButton()
-        clone_button.setStyleSheet(
-            """
-            QPushButton {
-                border: 1px solid #808080;
-            }
-        """
-        )
-        clone_icon = create_svg_icon("resources/fork.svg")
-        clone_button.setIcon(clone_icon)
-        clone_button.setIconSize(QSize(24, 24))
-        clone_button.setToolTip("Fork")
-        clone_button.clicked.connect(self.cloneForm)
-        clone_button_widget.setWidget(clone_button)
-        bottom_layout.addItem(clone_button_widget)
-
-        clone_branch_button_widget = QGraphicsProxyWidget()
-        clone_branch_button = QPushButton()
-        clone_branch_button.setStyleSheet(
-            """
-            QPushButton {
-                border: 1px solid #808080;
-            }
-        """
-        )
-        clone_branch_icon = create_svg_icon("resources/clone.svg")
-        clone_branch_button.setIcon(clone_branch_icon)
-        clone_branch_button.setIconSize(QSize(24, 24))
-        clone_branch_button.setToolTip("Clone Branch")
-        clone_branch_button.clicked.connect(self.cloneBranch)
-        clone_branch_button_widget.setWidget(clone_branch_button)
-        bottom_layout.addItem(clone_branch_button_widget)
-
-        follow_up_button_widget = QGraphicsProxyWidget()
-        follow_up_button = QPushButton()
-        follow_up_button.setStyleSheet(
-            """
-            QPushButton {
-                border: 1px solid #808080;
-            }
-        """
-        )
-        follow_up_icon = create_svg_icon("resources/bulb.svg")
-        follow_up_button.setIcon(follow_up_icon)
-        follow_up_button.setIconSize(QSize(24, 24))
-        follow_up_button.setToolTip("Generate Follow-up Questions")
-        follow_up_button.clicked.connect(self.generateFollowUpQuestions)
-        follow_up_button_widget.setWidget(follow_up_button)
-        bottom_layout.addItem(follow_up_button_widget)
-
-        delete_button_widget = QGraphicsProxyWidget()
-        delete_button = QPushButton()
-        delete_button.setStyleSheet(
-            """
-            QPushButton {
-                border: 1px solid #808080;
-            }
-        """
-        )
-        delete_icon = create_svg_icon("resources/delete.svg")
-        delete_button.setIcon(delete_icon)
-        delete_button.setIconSize(QSize(24, 24))
-        delete_button.setToolTip("Delete")
-        delete_button.clicked.connect(self.deleteForm)
-        delete_button_widget.setWidget(delete_button)
-        bottom_layout.addItem(delete_button_widget)
+        bottom_layout = add_buttons(self)
 
         # Add bottom layout to main layout
         main_layout.addItem(bottom_layout)
