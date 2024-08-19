@@ -130,23 +130,6 @@ class FormWidget(QGraphicsWidget):
         clone_button_widget.setWidget(clone_button)
         bottom_layout.addItem(clone_button_widget)
 
-        delete_button_widget = QGraphicsProxyWidget()
-        delete_button = QPushButton()
-        delete_button.setStyleSheet(
-            """
-            QPushButton {
-                border: 1px solid #808080;
-            }
-        """
-        )
-        delete_icon = create_svg_icon("resources/delete.svg")
-        delete_button.setIcon(delete_icon)
-        delete_button.setIconSize(QSize(24, 24))
-        delete_button.setToolTip("Delete")
-        delete_button.clicked.connect(self.deleteForm)
-        delete_button_widget.setWidget(delete_button)
-        bottom_layout.addItem(delete_button_widget)
-
         clone_branch_button_widget = QGraphicsProxyWidget()
         clone_branch_button = QPushButton()
         clone_branch_button.setStyleSheet(
@@ -163,6 +146,40 @@ class FormWidget(QGraphicsWidget):
         clone_branch_button.clicked.connect(self.cloneBranch)
         clone_branch_button_widget.setWidget(clone_branch_button)
         bottom_layout.addItem(clone_branch_button_widget)
+
+        follow_up_button_widget = QGraphicsProxyWidget()
+        follow_up_button = QPushButton()
+        follow_up_button.setStyleSheet(
+            """
+            QPushButton {
+                border: 1px solid #808080;
+            }
+        """
+        )
+        follow_up_icon = create_svg_icon("resources/bulb.svg")
+        follow_up_button.setIcon(follow_up_icon)
+        follow_up_button.setIconSize(QSize(24, 24))
+        follow_up_button.setToolTip("Generate Follow-up Questions")
+        follow_up_button.clicked.connect(self.generateFollowUpQuestions)
+        follow_up_button_widget.setWidget(follow_up_button)
+        bottom_layout.addItem(follow_up_button_widget)
+
+        delete_button_widget = QGraphicsProxyWidget()
+        delete_button = QPushButton()
+        delete_button.setStyleSheet(
+            """
+            QPushButton {
+                border: 1px solid #808080;
+            }
+        """
+        )
+        delete_icon = create_svg_icon("resources/delete.svg")
+        delete_button.setIcon(delete_icon)
+        delete_button.setIconSize(QSize(24, 24))
+        delete_button.setToolTip("Delete")
+        delete_button.clicked.connect(self.deleteForm)
+        delete_button_widget.setWidget(delete_button)
+        bottom_layout.addItem(delete_button_widget)
 
         # Add bottom layout to main layout
         main_layout.addItem(bottom_layout)
@@ -223,6 +240,52 @@ class FormWidget(QGraphicsWidget):
             self.updateLinkLines()
         else:
             event.ignore()
+
+    def generateFollowUpQuestions(self):
+        # Gather the current conversation context
+        context_data = []
+        for i, data in enumerate(self.gatherFormData()):
+            context = data["context"]
+            if context:
+                message = dict(role="user", content=context)
+                context_data.append(message)
+
+        # Construct the prompt for generating follow-up questions
+        prompt = (
+            "Based on the conversation above, "
+            "please generate 3 follow-up questions. "
+            "Keep them concise and relevant to the topic."
+        )
+        context_data.append(dict(role="user", content=prompt))
+
+        # Create a new worker to handle the LLM request
+        self.worker = Worker(self.model, self.system_message, context_data)
+        self.worker.signals.update.connect(self.handle_follow_up_questions)
+        self.worker.signals.finished.connect(self.handle_finished)
+        self.worker.signals.error.connect(self.handle_error)
+
+        self.highlight_hierarchy()
+        thread_pool.start(self.worker)
+        self.start_processing()
+
+    def handle_follow_up_questions(self, text):
+        try:
+            questions = text.split("\n")
+            form_width = self.boundingRect().width()
+            form_height = self.boundingRect().height()
+            x_offset = form_width + 200
+            for i, question in enumerate(questions):
+                if question.strip():
+                    y_offset = i * (form_height + 100)
+                    new_pos = self.pos() + QPointF(x_offset, y_offset)
+                    from commands import CreateFormCommand
+
+                    command = CreateFormCommand(self.scene(), self, new_pos, self.model)
+                    self.scene().command_invoker.execute(command)
+                    new_form = command.created_form
+                    new_form.input_box.widget().setText(question)
+        except Exception as e:
+            self.handle_error(f"Error parsing follow-up questions: {str(e)}")
 
     def cloneBranch(self):
         from commands import CloneBranchCommand
