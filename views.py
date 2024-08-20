@@ -1,6 +1,7 @@
-from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtCore import QSize
+from PyQt6.QtCore import Qt, QRectF, QPoint, QRect
 from PyQt6.QtGui import QFont, QColor, QPainter
-from PyQt6.QtWidgets import QGraphicsView
+from PyQt6.QtWidgets import QGraphicsView, QRubberBand
 
 
 class CustomGraphicsView(QGraphicsView):
@@ -10,11 +11,17 @@ class CustomGraphicsView(QGraphicsView):
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
 
         # Create instruction text item
-        self.instruction_text = "Command/Ctrl + Click to create node"
+        self.instruction_text = "\nCommand/Ctrl + Click to create node"
         self.instruction_text += "\nDrag top bar on node to move"
+        self.instruction_text += "\nHold Shift + Click and drag to select and zoom"
         self.instruction_font = QFont("Arial", 16, QFont.Weight.Bold)
         self.text_color = QColor(100, 100, 100, 255)
         self.bg_color = QColor(0, 0, 0, 50)
+
+        # Zoom selection variables
+        self.rubberBand = None
+        self.origin = QPoint()
+        self.is_selecting = False
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -28,8 +35,10 @@ class CustomGraphicsView(QGraphicsView):
         # Draw instruction label
         painter.setFont(self.instruction_font)
         fm = painter.fontMetrics()
-        text_width = fm.horizontalAdvance(self.instruction_text)
-        text_height = fm.height()
+        text_width = max(
+            fm.horizontalAdvance(line) for line in self.instruction_text.split("\n")
+        )
+        text_height = fm.height() * len(self.instruction_text.split("\n"))
 
         # Calculate text position
         padding = 10
@@ -44,7 +53,43 @@ class CustomGraphicsView(QGraphicsView):
 
         # Draw text
         painter.setPen(self.text_color)
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, self.instruction_text)
+        y = int(text_rect.top() + padding)
+        for line in self.instruction_text.split("\n"):
+            painter.drawText(int(text_rect.left() + padding), y, line)
+            y += fm.height()
+
+    def mousePressEvent(self, event):
+        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            self.is_selecting = True
+            self.origin = event.pos()
+            if not self.rubberBand:
+                self.rubberBand = QRubberBand(QRubberBand.Shape.Rectangle, self)
+            self.rubberBand.setGeometry(QRect(self.origin, QSize()))
+            self.rubberBand.show()
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.is_selecting:
+            self.rubberBand.setGeometry(QRect(self.origin, event.pos()))
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.is_selecting:
+            self.is_selecting = False
+            if self.rubberBand:
+                self.rubberBand.hide()
+                selection_polygon = self.mapToScene(self.rubberBand.geometry())
+                selection_rect = selection_polygon.boundingRect()
+                self.zoomToRect(selection_rect)
+        else:
+            super().mouseReleaseEvent(event)
+
+    def zoomToRect(self, rect):
+        if not rect.isEmpty():
+            self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+            self.updateSceneRect(self.sceneRect().united(rect))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
