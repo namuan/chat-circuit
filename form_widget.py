@@ -1,16 +1,16 @@
 import random
 from collections import deque
 
-from PyQt6.QtCore import QPointF, Qt, QThreadPool, QTimer
+from PyQt6.QtCore import QPointF, QThreadPool
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QBrush, QColor, QIcon
 from PyQt6.QtWidgets import (
     QGraphicsItem,
     QGraphicsLinearLayout,
     QGraphicsProxyWidget,
     QGraphicsWidget,
-    QLineEdit,
-    QSizePolicy,
     QTextEdit,
+    QSizePolicy,
     QGraphicsRectItem,
 )
 
@@ -72,20 +72,22 @@ class FormWidget(QGraphicsWidget):
 
         # Input box
         self.input_box = QGraphicsProxyWidget()
-        self.input_line_edit = QLineEdit()
-        self.input_line_edit.setStyleSheet(
-            "background-color: white;" "border: 1px solid #ccc;" "padding: 1;"
+        self.input_text_edit = QTextEdit()
+        self.input_text_edit.setPlaceholderText(
+            "Prompt (and press Ctrl+Enter to submit)"
         )
-        self.input_line_edit.setPlaceholderText("Prompt (and press enter)")
-        self.input_line_edit.setMinimumHeight(30)  # Increase minimum height
-        self.input_line_edit.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        self.input_text_edit.setMinimumHeight(30)
+        self.input_text_edit.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
         )
-        self.input_line_edit.returnPressed.connect(self.submitForm)
-        self.input_box.setWidget(self.input_line_edit)
+        self.input_text_edit.textChanged.connect(self.adjustInputBoxHeight)
+        self.input_box.setWidget(self.input_text_edit)
         self.input_box.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
         )
+
+        # Connect the key press event
+        self.input_text_edit.installEventFilter(self)
 
         chat_layout.addItem(self.input_box)
 
@@ -114,6 +116,27 @@ class FormWidget(QGraphicsWidget):
 
         self.setLayout(main_layout)
 
+    def eventFilter(self, obj, event):
+        if obj == self.input_text_edit and event.type() == event.Type.KeyPress:
+            if (
+                event.key() == Qt.Key.Key_Return
+                and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+            ):
+                self.submitForm()
+                return True
+        return super().eventFilter(obj, event)
+
+    def adjustInputBoxHeight(self):
+        document = self.input_text_edit.document()
+        new_height = document.size().height() + 10  # Add some padding
+        if new_height != self.input_box.size().height():
+            self.input_box.setMinimumHeight(
+                min(new_height, 150)
+            )  # Set a maximum height
+            self.input_box.setMaximumHeight(min(new_height, 150))
+            self.layout().invalidate()
+            QTimer.singleShot(0, self.updateGeometry)
+
     def highlight(self):
         self.background_item.setBrush(QBrush(self.highlight_color))
         self.highlight_timer.start(1000)
@@ -130,7 +153,7 @@ class FormWidget(QGraphicsWidget):
             self.parent_form.highlight_hierarchy()
 
     def setFocusToInput(self):
-        self.input_line_edit.setFocus()
+        self.input_text_edit.setFocus()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -199,7 +222,7 @@ class FormWidget(QGraphicsWidget):
                     command = CreateFormCommand(self.scene(), self, new_pos, self.model)
                     self.scene().command_invoker.execute(command)
                     new_form = command.created_form
-                    new_form.input_box.widget().setText(question)
+                    new_form.input_box.widget().setPlainText(question)
         except Exception as e:
             self.handle_error(f"Error parsing follow-up questions: {str(e)}")
 
@@ -252,7 +275,7 @@ class FormWidget(QGraphicsWidget):
     def process_next_form(self):
         try:
             form = self.form_chain.popleft()
-            print(f"❓{form.input_box.widget().text().strip()}")
+            print(f"❓{form.input_box.widget().toPlainText().strip()}")
             form.submitForm()
             form.worker.signals.notify_child.connect(self.process_next_form)
         except IndexError:
@@ -263,7 +286,9 @@ class FormWidget(QGraphicsWidget):
         self.process_next_form()
 
     def submitForm(self):
-        if not self.input_box.widget().text().strip():  # Check if input is not empty
+        if (
+            not self.input_box.widget().toPlainText().strip()
+        ):  # Check if input is not empty
             return
 
         form_data = self.gatherFormData()
@@ -274,7 +299,9 @@ class FormWidget(QGraphicsWidget):
                 message = dict(role="user", content=context)
                 context_data.append(message)
 
-        current_message = dict(role="user", content=self.input_box.widget().text())
+        current_message = dict(
+            role="user", content=self.input_box.widget().toPlainText()
+        )
         context_data.append(current_message)
 
         self.worker = Worker(self.model, self.system_message, context_data)
@@ -329,7 +356,7 @@ class FormWidget(QGraphicsWidget):
         return {
             "pos_x": self.pos().x(),
             "pos_y": self.pos().y(),
-            "input": self.input_box.widget().text(),
+            "input": self.input_box.widget().toPlainText(),
             "context": self.conversation_area.widget().toPlainText(),
             "children": [child.to_dict() for child in self.child_forms],
             "model": self.model,
@@ -339,7 +366,7 @@ class FormWidget(QGraphicsWidget):
     def from_dict(cls, data, scene, parent=None):
         form = cls(parent, model=data["model"])
         form.setPos(QPointF(data["pos_x"], data["pos_y"]))
-        form.input_box.widget().setText(data["input"])
+        form.input_box.widget().setPlainText(data["input"])
         form.conversation_area.widget().setPlainText(data["context"])
         if "model" in data:
             form.model = data["model"]
