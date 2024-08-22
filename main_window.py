@@ -46,11 +46,16 @@ class MainWindow(QMainWindow):
 
         self.scene = GraphicsScene()
         self.view = CustomGraphicsView(self.scene)
+        self.view.zoomChanged.connect(self.onZoomChanged)
         self.setCentralWidget(self.view)
 
         self.zoom_factor = 1.0
         self.create_menu()
         self.restoreApplicationState()
+
+    def onZoomChanged(self, zoom_factor):
+        self.zoom_factor = zoom_factor
+        self.update_zoom()
 
     def create_menu(self):
         # File menu

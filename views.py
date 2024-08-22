@@ -1,10 +1,12 @@
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, pyqtSignal
 from PyQt6.QtCore import Qt, QRectF, QPoint, QRect
 from PyQt6.QtGui import QFont, QColor, QPainter
 from PyQt6.QtWidgets import QGraphicsView, QRubberBand
 
 
 class CustomGraphicsView(QGraphicsView):
+    zoomChanged = pyqtSignal(float)
+
     def __init__(self, scene):
         super().__init__(scene)
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -90,6 +92,12 @@ class CustomGraphicsView(QGraphicsView):
         if not rect.isEmpty():
             self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
             self.updateSceneRect(self.sceneRect().united(rect))
+            self.updateZoomFactor()
+
+    def updateZoomFactor(self):
+        current_transform = self.transform()
+        current_scale = current_transform.m11()  # Horizontal scale factor
+        self.zoomChanged.emit(current_scale)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
