@@ -2,6 +2,20 @@
 
 ![](docs/img.png)
 
+Brief overview
+<blockquote class="twitter-tweet" data-media-max-width="560"><p lang="en" dir="ltr">🔍 Added a small feature to zoom in using mouse selection. Handy for looking at deep branches <a href="https://twitter.com/hashtag/ChatCircuit?src=hash&amp;ref_src=twsrc%5Etfw">#ChatCircuit</a><br><br>👉 <a href="https://t.co/y20u9vZevM">https://t.co/y20u9vZevM</a> <a href="https://t.co/noONyJBvw2">pic.twitter.com/noONyJBvw2</a></p>&mdash; namuaN (@namuan_twt) <a href="https://twitter.com/namuan_twt/status/1826620308507558383?ref_src=twsrc%5Etfw">August 22, 2024</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+### Short demos
+
+Re-run all nodes in a branch
+<blockquote class="twitter-tweet" data-media-max-width="560"><p lang="en" dir="ltr">Chat Circuit now makes it possible to re-run a branch of your conversation with LLM with a different prompt. It supports all local LLMs running on <a href="https://twitter.com/ollama?ref_src=twsrc%5Etfw">@ollama</a> <br>💾 👉 <a href="https://t.co/y20u9vYGGe">https://t.co/y20u9vYGGe</a> <a href="https://t.co/ib7OTWhnwW">pic.twitter.com/ib7OTWhnwW</a></p>&mdash; namuaN (@namuan_twt) <a href="https://twitter.com/namuan_twt/status/1820796082248458377?ref_src=twsrc%5Etfw">August 6, 2024</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+Generate Follow up questions
+<blockquote class="twitter-tweet" data-media-max-width="560"><p lang="en" dir="ltr">Implemented this idea in chat circuit. Here is a quick demo of the application along with generating follow up questions using <a href="https://twitter.com/hashtag/LLM?src=hash&amp;ref_src=twsrc%5Etfw">#LLM</a> <a href="https://t.co/y20u9vYGGe">https://t.co/y20u9vYGGe</a> <a href="https://t.co/2rFxBIZyg5">https://t.co/2rFxBIZyg5</a> <a href="https://t.co/IjnXu0si35">pic.twitter.com/IjnXu0si35</a></p>&mdash; namuaN (@namuan_twt) <a href="https://twitter.com/namuan_twt/status/1825849039348289574?ref_src=twsrc%5Etfw">August 20, 2024</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+Zoom in/out
+<blockquote class="twitter-tweet" data-media-max-width="560"><p lang="en" dir="ltr">🔍 Added a small feature to zoom in using mouse selection. Handy for looking at deep branches <a href="https://twitter.com/hashtag/ChatCircuit?src=hash&amp;ref_src=twsrc%5Etfw">#ChatCircuit</a><br><br>👉 <a href="https://t.co/y20u9vZevM">https://t.co/y20u9vZevM</a> <a href="https://t.co/noONyJBvw2">pic.twitter.com/noONyJBvw2</a></p>&mdash; namuaN (@namuan_twt) <a href="https://twitter.com/namuan_twt/status/1826620308507558383?ref_src=twsrc%5Etfw">August 22, 2024</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
 ### Features
 
 **Multi-Branch Conversations**
