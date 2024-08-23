@@ -25,6 +25,9 @@ pre-commit-tool: ## Manually run a single pre-commit hook
 build: clean pre-commit ## Build package
 	echo "✅ Done"
 
+run: ## Runs the application
+	export PYTHONPATH=`pwd`:$PYTHONPATH && ./venv/bin/python3 main.py
+
 .PHONY: help
 .DEFAULT_GOAL := help
 
