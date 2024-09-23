@@ -427,6 +427,8 @@ class FormWidget(QGraphicsWidget):
         return {
             "pos_x": self.pos().x(),
             "pos_y": self.pos().y(),
+            "width": self.size().width(),
+            "height": self.size().height(),
             "input": self.input_box.widget().toPlainText(),
             "context": self.conversation_area.widget().toPlainText(),
             "children": [child.to_dict() for child in self.child_forms],
@@ -437,6 +439,14 @@ class FormWidget(QGraphicsWidget):
     def from_dict(cls, data, scene, parent=None):
         form = cls(parent, model=data["model"])
         form.setPos(QPointF(data["pos_x"], data["pos_y"]))
+
+        # Use default values if width and height are not in the data
+        default_width = 300  # Set an appropriate default width
+        default_height = 200  # Set an appropriate default height
+        width = data.get("width", default_width)
+        height = data.get("height", default_height)
+        form.resize(width, height)
+
         form.input_box.widget().setPlainText(data["input"])
         form.conversation_area.widget().setPlainText(data["context"])
         if "model" in data:
