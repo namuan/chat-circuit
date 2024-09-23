@@ -12,6 +12,9 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QSizePolicy,
     QGraphicsRectItem,
+    QLabel,
+    QWidget,
+    QVBoxLayout,
 )
 
 from buttons_bar import add_buttons
@@ -131,6 +134,19 @@ class FormWidget(QGraphicsWidget):
         self.conversation_area.setWidget(conversation_widget)
         chat_layout.addItem(self.conversation_area)
 
+        # Create a horizontal layout for emoji and input box
+        input_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
+
+        # Create and add emoji label
+        self.emoji_label = self.create_emoji_label()
+        self.emoji_container = QWidget()
+        emoji_container_layout = QVBoxLayout(self.emoji_container)
+        emoji_container_layout.addWidget(self.emoji_label)
+        emoji_container_layout.setContentsMargins(0, 0, 0, 0)
+        self.emoji_proxy = QGraphicsProxyWidget()
+        self.emoji_proxy.setWidget(self.emoji_container)
+        input_layout.addItem(self.emoji_proxy)
+
         # Input box
         self.input_box = QGraphicsProxyWidget()
         self.input_text_edit = QTextEdit()
@@ -150,7 +166,9 @@ class FormWidget(QGraphicsWidget):
         # Connect the key press event
         self.input_text_edit.installEventFilter(self)
 
-        chat_layout.addItem(self.input_box)
+        input_layout.addItem(self.input_box)
+
+        chat_layout.addItem(input_layout)
 
         # Add form layout to main layout
         self.main_layout.addItem(chat_layout)
@@ -181,6 +199,22 @@ class FormWidget(QGraphicsWidget):
         self.resize_handle.resize_signal.connect(self.resize_widget)
         self.update_resize_handle()
 
+    def create_emoji_label(self):
+        emoji_label = QLabel("❓")  # You can change this to any emoji you prefer
+        emoji_label.setStyleSheet(
+            """
+            QLabel {
+                font-size: 24px;
+                background-color: lightgray;
+            }
+        """
+        )
+        emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        emoji_label.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
+        )
+        return emoji_label
+
     def resize_widget(self, new_size: QPointF):
         new_width = max(new_size.x(), self.minimumWidth())
         new_height = max(new_size.y(), self.minimumHeight())
@@ -206,12 +240,18 @@ class FormWidget(QGraphicsWidget):
 
     def adjustInputBoxHeight(self):
         document = self.input_text_edit.document()
-        new_height = document.size().height() + 10  # Add some padding
+        new_height = max(
+            document.size().height() + 10, 30
+        )  # Add some padding and set minimum height
         if new_height != self.input_box.size().height():
-            self.input_box.setMinimumHeight(
-                min(new_height, 150)
-            )  # Set a maximum height
-            self.input_box.setMaximumHeight(min(new_height, 150))
+            max_height = 150
+            new_height = min(int(new_height), max_height)
+            self.input_box.setMinimumHeight(new_height)
+            self.input_box.setMaximumHeight(new_height)
+
+            # Adjust emoji container height
+            self.emoji_container.setFixedHeight(new_height)
+
             self.layout().invalidate()
             QTimer.singleShot(0, self.updateGeometry)
 
