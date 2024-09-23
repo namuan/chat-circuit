@@ -3,7 +3,7 @@ from collections import deque
 
 from PyQt6.QtCore import QPointF, QThreadPool, pyqtSignal, QRectF, QSizeF
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QBrush, QColor, QIcon, QCursor, QPen
+from PyQt6.QtGui import QBrush, QColor, QIcon, QCursor, QPen, QFont
 from PyQt6.QtWidgets import (
     QGraphicsItem,
     QGraphicsLinearLayout,
@@ -114,11 +114,19 @@ class FormWidget(QGraphicsWidget):
         chat_layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
 
         # Conversation area
+        self.custom_font = QFont("Fantasque Sans Mono", 18)
         self.conversation_area = QGraphicsProxyWidget()
         conversation_widget = QTextEdit()
         conversation_widget.setReadOnly(True)
         conversation_widget.setStyleSheet(
-            "background-color: white; border: 1px solid #ccc;"
+            f"""
+            QTextEdit {{
+                background-color: white;
+                border: 1px solid #ccc;
+                font-family: {self.custom_font.family()};
+                font-size: {self.custom_font.pointSize()}pt;
+            }}
+            """
         )
         self.conversation_area.setWidget(conversation_widget)
         chat_layout.addItem(self.conversation_area)
