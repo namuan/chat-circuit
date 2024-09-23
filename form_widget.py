@@ -1,9 +1,9 @@
 import random
 from collections import deque
 
-from PyQt6.QtCore import QPointF, QThreadPool
+from PyQt6.QtCore import QPointF, QThreadPool, pyqtSignal, QRectF, QSizeF
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QBrush, QColor, QIcon
+from PyQt6.QtGui import QBrush, QColor, QIcon, QCursor, QPen
 from PyQt6.QtWidgets import (
     QGraphicsItem,
     QGraphicsLinearLayout,
@@ -28,6 +28,59 @@ def create_svg_icon(file_path):
     return icon
 
 
+class ResizeHandle(QGraphicsWidget):
+    resize_signal = pyqtSignal(QPointF)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFlag(QGraphicsWidget.GraphicsItemFlag.ItemIsMovable, False)
+        self.setFlag(QGraphicsWidget.GraphicsItemFlag.ItemIsSelectable, False)
+        self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
+        self.setZValue(2)
+        self.setGeometry(QRectF(0, 0, 10, 10))
+        self.initial_pos = QPointF()
+        self.initial_size = QSizeF()
+        self.resizing = False
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.resizing = True
+            self.initial_pos = event.scenePos()
+            parent = self.parentItem()
+            if isinstance(parent, FormWidget):
+                self.initial_size = parent.size()
+            event.accept()
+        else:
+            event.ignore()
+
+    def mouseMoveEvent(self, event):
+        if self.resizing:
+            delta = event.scenePos() - self.initial_pos
+            new_width = max(
+                self.initial_size.width() + delta.x(), self.parentItem().minimumWidth()
+            )
+            new_height = max(
+                self.initial_size.height() + delta.y(),
+                self.parentItem().minimumHeight(),
+            )
+            self.resize_signal.emit(QPointF(new_width, new_height))
+            event.accept()
+        else:
+            event.ignore()
+
+    def mouseReleaseEvent(self, event):
+        if self.resizing:
+            self.resizing = False
+            event.accept()
+        else:
+            event.ignore()
+
+    def paint(self, painter, option, widget):
+        painter.setBrush(QBrush(QColor(Qt.GlobalColor.darkGray).lighter(128)))
+        painter.setPen(QPen(Qt.GlobalColor.darkGray, 2))
+        painter.drawRect(self.boundingRect())
+
+
 class FormWidget(QGraphicsWidget):
     def __init__(self, parent=None, model=None):
         super().__init__()
@@ -48,13 +101,13 @@ class FormWidget(QGraphicsWidget):
         self.form_chain = deque()
 
         # Create main layout
-        main_layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
+        self.main_layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
 
         # Create and add header
         self.header = HeaderWidget(self.model)
         self.header.model_changed.connect(self.on_model_changed)
         self.header.setZValue(1)
-        main_layout.addItem(self.header)
+        self.main_layout.addItem(self.header)
         self.header.update_model_name()
 
         # Create chat layout
@@ -92,13 +145,13 @@ class FormWidget(QGraphicsWidget):
         chat_layout.addItem(self.input_box)
 
         # Add form layout to main layout
-        main_layout.addItem(chat_layout)
+        self.main_layout.addItem(chat_layout)
 
         # Create bottom buttons layout
         bottom_layout = add_buttons(self)
 
         # Add bottom layout to main layout
-        main_layout.addItem(bottom_layout)
+        self.main_layout.addItem(bottom_layout)
 
         # Set the layout for this widget
         QTimer.singleShot(0, self.setFocusToInput)
@@ -114,7 +167,24 @@ class FormWidget(QGraphicsWidget):
         self.highlight_timer.setSingleShot(True)
         self.highlight_timer.timeout.connect(self.remove_highlight)
 
-        self.setLayout(main_layout)
+        self.setLayout(self.main_layout)
+
+        self.resize_handle = ResizeHandle(self)
+        self.resize_handle.resize_signal.connect(self.resize_widget)
+        self.update_resize_handle()
+
+    def resize_widget(self, new_size: QPointF):
+        new_width = max(new_size.x(), self.minimumWidth())
+        new_height = max(new_size.y(), self.minimumHeight())
+        self.prepareGeometryChange()
+        self.resize(new_width, new_height)
+        self.update_resize_handle()
+
+    def update_resize_handle(self):
+        if self.resize_handle:
+            self.resize_handle.setPos(
+                self.rect().width() - 10, self.rect().height() - 10
+            )
 
     def eventFilter(self, obj, event):
         if obj == self.input_text_edit and event.type() == event.Type.KeyPress:
@@ -158,6 +228,7 @@ class FormWidget(QGraphicsWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.background_item.setRect(self.boundingRect())
+        self.update_resize_handle()
 
     def mousePressEvent(self, event):
         self.setFocus()
