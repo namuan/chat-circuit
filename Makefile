@@ -15,7 +15,7 @@ clean: ## Clean package
 	find . -type d -name '__pycache__' | xargs rm -rf
 	rm -rf build dist
 
-pre-commit: ## Manually run all precommit hooks
+pre-commit: ## Manually run all pre-commit hooks
 	./venv/bin/pre-commit install
 	./venv/bin/pre-commit run --all-files
 
