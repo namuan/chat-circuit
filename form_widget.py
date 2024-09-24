@@ -21,6 +21,7 @@ from buttons_bar import add_buttons
 from header_widget import HeaderWidget
 from link_line import LinkLine
 from worker import Worker
+from markdown_render import HtmlRenderer
 
 thread_pool = QThreadPool()
 active_workers = 0
@@ -117,10 +118,12 @@ class FormWidget(QGraphicsWidget):
         chat_layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
 
         # Conversation area
+        self.markdown_content = ""
         self.custom_font = QFont("Fantasque Sans Mono", 18)
         self.conversation_area = QGraphicsProxyWidget()
         conversation_widget = QTextEdit()
         conversation_widget.setReadOnly(True)
+        conversation_widget.setAcceptRichText(True)
         conversation_widget.setStyleSheet(
             f"""
             QTextEdit {{
@@ -457,8 +460,10 @@ class FormWidget(QGraphicsWidget):
         self.update_answer(f"Error occurred: {error}")
 
     def update_answer(self, message):
+        self.markdown_content = message
         conversation_widget = self.conversation_area.widget()
-        conversation_widget.setText(message)
+        renderer = HtmlRenderer()
+        conversation_widget.setDocument(renderer.render(self.markdown_content))
 
     def gatherFormData(self):
         data = []
@@ -478,7 +483,7 @@ class FormWidget(QGraphicsWidget):
             "width": self.size().width(),
             "height": self.size().height(),
             "input": self.input_box.widget().toPlainText(),
-            "context": self.conversation_area.widget().toPlainText(),
+            "context": self.markdown_content,
             "children": [child.to_dict() for child in self.child_forms],
             "model": self.model,
         }
@@ -496,7 +501,8 @@ class FormWidget(QGraphicsWidget):
         form.resize(width, height)
 
         form.input_box.widget().setPlainText(data["input"])
-        form.conversation_area.widget().setPlainText(data["context"])
+        form.markdown_content = data["context"]
+        form.update_answer(form.markdown_content)
         if "model" in data:
             form.model = data["model"]
             form.header.update_model_name()
