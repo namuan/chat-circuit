@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QSize, pyqtSignal
+from PyQt6.QtCore import QSize, pyqtSignal, QPointF
 from PyQt6.QtCore import Qt, QRectF, QPoint, QRect
 from PyQt6.QtGui import QFont, QColor, QPainter
 from PyQt6.QtWidgets import QGraphicsView, QRubberBand
@@ -34,7 +34,10 @@ class CustomGraphicsView(QGraphicsView):
     def drawForeground(self, painter, rect):
         super().drawForeground(painter, rect)
 
-        # Draw instruction label
+        if rect.topLeft() != QPointF(0, 0):
+            return
+
+            # Draw instruction label
         painter.setFont(self.instruction_font)
         fm = painter.fontMetrics()
         text_width = max(

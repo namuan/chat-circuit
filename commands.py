@@ -140,7 +140,9 @@ class CloneBranchCommand(Command):
 
         cloned_form = FormWidget(parent=parent_form, model=source_form.model)
         cloned_form.setPos(position)
-        cloned_form.input_box.widget().setText(source_form.input_box.widget().text())
+        cloned_form.input_box.widget().setPlainText(
+            source_form.input_box.widget().toPlainText()
+        )
         cloned_form.conversation_area.widget().setPlainText(
             source_form.conversation_area.widget().toPlainText()
         )
