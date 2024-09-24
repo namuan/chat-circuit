@@ -37,7 +37,7 @@ class CustomGraphicsView(QGraphicsView):
         if rect.topLeft() != QPointF(0, 0):
             return
 
-            # Draw instruction label
+        # Draw instruction label
         painter.setFont(self.instruction_font)
         fm = painter.fontMetrics()
         text_width = max(
