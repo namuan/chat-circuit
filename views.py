@@ -143,11 +143,16 @@ class CustomGraphicsView(QGraphicsView):
             )
 
     def start_animation(self):
-        self.is_expanded = False
-        self.update_instruction_rect()
-        self.animation.setStartValue(QRectF(10, 10, self.full_width, self.full_height))
-        self.animation.setEndValue(QRectF(10, 10, self.small_width, self.small_height))
-        self.animation.start()
+        if self.is_expanded:
+            self.is_expanded = False
+            self.update_instruction_rect()
+            self.animation.setStartValue(
+                QRectF(10, 10, self.full_width, self.full_height)
+            )
+            self.animation.setEndValue(
+                QRectF(10, 10, self.small_width, self.small_height)
+            )
+            self.animation.start()
 
     def expand_instruction_rect(self):
         self.is_expanded = True
