@@ -1,7 +1,9 @@
-from PyQt6.QtCore import QSize, pyqtSignal, QPointF
+from PyQt6.QtCore import QSize, pyqtSignal, QPointF, QTimer
 from PyQt6.QtCore import Qt, QRectF, QPoint, QRect
 from PyQt6.QtGui import QFont, QColor, QPainter
 from PyQt6.QtWidgets import QGraphicsView, QRubberBand
+
+from minimap import MiniMap
 
 
 class CustomGraphicsView(QGraphicsView):
@@ -24,6 +26,16 @@ class CustomGraphicsView(QGraphicsView):
         self.rubberBand = None
         self.origin = QPoint()
         self.is_selecting = False
+
+        # Create mini-map
+        self.minimap = MiniMap(self)
+        self.minimap.setParent(self.viewport())
+        self.minimap.hide()  # Hide initially, show after the first resizeEvent
+
+        # Update mini-map periodically
+        self.update_timer = QTimer(self)
+        self.update_timer.timeout.connect(self.update_minimap)
+        self.update_timer.start(100)  # Update every 100 ms
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -79,6 +91,7 @@ class CustomGraphicsView(QGraphicsView):
             self.rubberBand.setGeometry(QRect(self.origin, event.pos()))
         else:
             super().mouseMoveEvent(event)
+        self.minimap.update_minimap()
 
     def mouseReleaseEvent(self, event):
         if self.is_selecting:
@@ -90,12 +103,18 @@ class CustomGraphicsView(QGraphicsView):
                 self.zoomToRect(selection_rect)
         else:
             super().mouseReleaseEvent(event)
+        self.update_minimap()
 
     def zoomToRect(self, rect):
         if not rect.isEmpty():
             self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
             self.updateSceneRect(self.sceneRect().united(rect))
             self.updateZoomFactor()
+            self.update_minimap()
+
+    def update_minimap(self):
+        if self.minimap.isVisible():
+            self.minimap.update_minimap()
 
     def updateZoomFactor(self):
         current_transform = self.transform()
@@ -104,4 +123,6 @@ class CustomGraphicsView(QGraphicsView):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self.minimap.setGeometry(10, self.height() - 160, 200, 150)
+        self.minimap.show()
         self.viewport().update()
