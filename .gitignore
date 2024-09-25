@@ -3,3 +3,4 @@ app.json
 models.conf
 crash.log
 uncompressed.py
+build/
