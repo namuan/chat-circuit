@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from buttons_bar import add_buttons
 from header_widget import HeaderWidget
+from hover_circle import HoverCircle
 from link_line import LinkLine
 from worker import Worker
 from markdown_render import HtmlRenderer
@@ -202,6 +203,9 @@ class FormWidget(QGraphicsWidget):
         self.resize_handle.resize_signal.connect(self.resize_widget)
         self.update_resize_handle()
 
+        self.circle_item = HoverCircle(self)
+        self.circle_item.setZValue(2)
+
     def create_emoji_label(self):
         emoji_label = QLabel("❓")  # You can change this to any emoji you prefer
         emoji_label.setStyleSheet(
@@ -276,6 +280,10 @@ class FormWidget(QGraphicsWidget):
     def setFocusToInput(self):
         self.input_text_edit.setFocus()
 
+    def moveBy(self, dx, dy):
+        super().moveBy(dx, dy)
+        self.updateLinkLines()
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.background_item.setRect(self.boundingRect())
@@ -286,15 +294,17 @@ class FormWidget(QGraphicsWidget):
         if (
             event.button() == Qt.MouseButton.LeftButton
             and self.header.boundingRect().contains(event.pos())
+            and not self.circle_item.isUnderMouse()
         ):
-            # Only start dragging if the mouse is pressed in the header area
             super().mousePressEvent(event)
         else:
-            # For clicks outside the header, pass the event to children
             event.ignore()
 
     def mouseMoveEvent(self, event):
-        if self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable:
+        if (
+            self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+            and not self.circle_item.isUnderMouse()
+        ):
             super().mouseMoveEvent(event)
             self.updateLinkLines()
         else:
