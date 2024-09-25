@@ -101,12 +101,12 @@ class MoveFormCommand(Command):
     def execute(self):
         self.form.setPos(self.new_pos)
         if self.form.link_line:
-            self.form.link_line.updatePosition()
+            self.form.link_line.update_position()
 
     def undo(self):
         self.form.setPos(self.old_pos)
         if self.form.link_line:
-            self.form.link_line.updatePosition()
+            self.form.link_line.update_position()
 
 
 class CloneBranchCommand(Command):

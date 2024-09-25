@@ -15,9 +15,9 @@ class LinkLine(QGraphicsItemGroup):
         self.chevron_size = 10
         self.chevron_spacing = 30
         self.setZValue(-1)
-        self.updatePosition()
+        self.update_position()
 
-    def createChevron(self, pos, angle):
+    def create_chevron(self, pos, angle):
         chevron = QGraphicsPolygonItem(self)
         chevron.setBrush(self.chevron_color)
         chevron.setPen(QPen(self.chevron_color, 1))
@@ -32,7 +32,7 @@ class LinkLine(QGraphicsItemGroup):
         chevron.setRotation(math.degrees(angle))
         return chevron
 
-    def updatePosition(self):
+    def update_position(self):
         parent_center = self.parent.mapToScene(self.parent.boundingRect().center())
         child_center = self.child.mapToScene(self.child.boundingRect().center())
 
@@ -62,6 +62,6 @@ class LinkLine(QGraphicsItemGroup):
                 parent_center.x() + dx * (i + 0.5) * self.chevron_spacing,
                 parent_center.y() + dy * (i + 0.5) * self.chevron_spacing,
             )
-            chevron = self.createChevron(pos, angle)
+            chevron = self.create_chevron(pos, angle)
             self.addToGroup(chevron)
             self.chevrons.append(chevron)

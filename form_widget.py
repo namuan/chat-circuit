@@ -241,7 +241,7 @@ class FormWidget(QGraphicsWidget):
                 event.key() == Qt.Key.Key_Return
                 and event.modifiers() & Qt.KeyboardModifier.ControlModifier
             ):
-                self.submitForm()
+                self.submit_form()
                 return True
         return super().eventFilter(obj, event)
 
@@ -282,7 +282,7 @@ class FormWidget(QGraphicsWidget):
 
     def moveBy(self, dx, dy):
         super().moveBy(dx, dy)
-        self.updateLinkLines()
+        self.update_link_lines()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -306,14 +306,14 @@ class FormWidget(QGraphicsWidget):
             and not self.circle_item.isUnderMouse()
         ):
             super().mouseMoveEvent(event)
-            self.updateLinkLines()
+            self.update_link_lines()
         else:
             event.ignore()
 
-    def generateFollowUpQuestions(self):
+    def generate_follow_up_questions(self):
         # Gather the current conversation context
         context_data = []
-        for i, data in enumerate(self.gatherFormData()):
+        for i, data in enumerate(self.gather_form_data()):
             context = data["context"]
             if context:
                 message = dict(role="user", content=context)
@@ -358,13 +358,13 @@ class FormWidget(QGraphicsWidget):
         except Exception as e:
             self.handle_error(f"Error parsing follow-up questions: {str(e)}")
 
-    def cloneBranch(self):
+    def clone_branch(self):
         from commands import CloneBranchCommand
 
         command = CloneBranchCommand(self.scene(), self)
         self.scene().command_invoker.execute(command)
 
-    def cloneForm(self):
+    def clone_form(self):
         from commands import CreateFormCommand
 
         form_width = self.boundingRect().width()
@@ -384,19 +384,19 @@ class FormWidget(QGraphicsWidget):
         command = CreateFormCommand(self.scene(), self, clone_pos, self.model)
         self.scene().command_invoker.execute(command)
 
-    def deleteForm(self):
+    def delete_form(self):
         from commands import DeleteFormCommand
 
         command = DeleteFormCommand(self)
         self.scene().command_invoker.execute(command)
 
-    def updateLinkLines(self):
+    def update_link_lines(self):
         if self.link_line:
-            self.link_line.updatePosition()
+            self.link_line.update_position()
         for child in self.child_forms:
-            child.updateLinkLines()
+            child.update_link_lines()
 
-    def allForms(self):
+    def all_forms(self):
         self.form_chain.appendleft(self)
         current_form = self
         while current_form:
@@ -408,22 +408,22 @@ class FormWidget(QGraphicsWidget):
         try:
             form = self.form_chain.popleft()
             print(f"❓{form.input_box.widget().toPlainText().strip()}")
-            form.submitForm()
+            form.submit_form()
             form.worker.signals.notify_child.connect(self.process_next_form)
         except IndexError:
             print("Processed all forms")
 
-    def reRunAll(self):
-        self.allForms()
+    def re_run_all(self):
+        self.all_forms()
         self.process_next_form()
 
-    def submitForm(self):
+    def submit_form(self):
         if (
             not self.input_box.widget().toPlainText().strip()
         ):  # Check if input is not empty
             return
 
-        form_data = self.gatherFormData()
+        form_data = self.gather_form_data()
         context_data = []
         for i, data in enumerate(form_data):
             context = data["context"]
@@ -475,7 +475,7 @@ class FormWidget(QGraphicsWidget):
         renderer = HtmlRenderer()
         conversation_widget.setDocument(renderer.render(self.markdown_content))
 
-    def gatherFormData(self):
+    def gather_form_data(self):
         data = []
         current_form = self.parent_form or self
         while current_form:

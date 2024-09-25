@@ -46,14 +46,14 @@ class MainWindow(QMainWindow):
 
         self.scene = GraphicsScene()
         self.view = CustomGraphicsView(self.scene)
-        self.view.zoomChanged.connect(self.onZoomChanged)
+        self.view.zoomChanged.connect(self.on_zoom_changed)
         self.setCentralWidget(self.view)
 
         self.zoom_factor = 1.0
         self.create_menu()
-        self.restoreApplicationState()
+        self.restore_application_state()
 
-    def onZoomChanged(self, zoom_factor):
+    def on_zoom_changed(self, zoom_factor):
         self.zoom_factor = zoom_factor
         self.update_zoom()
 
@@ -189,7 +189,7 @@ class MainWindow(QMainWindow):
         else:
             super().wheelEvent(event)
 
-    def restoreApplicationState(self):
+    def restore_application_state(self):
         if not self.state_manager.restore_window_state(self):
             self.showMaximized()
 

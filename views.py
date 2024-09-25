@@ -61,16 +61,6 @@ class CustomGraphicsView(QGraphicsView):
         # Start the animation after a delay
         QTimer.singleShot(3000, self.start_animation)  # 3 seconds delay
 
-    def setInstructionRect(self, rect):
-        if self._instruction_rect != rect:
-            self._instruction_rect = rect
-            self.viewport().update()
-
-    def getInstructionRect(self):
-        return self._instruction_rect
-
-    instruction_rect = pyqtProperty(QRectF, getInstructionRect, setInstructionRect)
-
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self.viewport())
@@ -120,6 +110,16 @@ class CustomGraphicsView(QGraphicsView):
 
         # Update the instruction rectangle size
         self.update_instruction_rect()
+
+    def set_instruction_rect(self, rect):
+        if self._instruction_rect != rect:
+            self._instruction_rect = rect
+            self.viewport().update()
+
+    def get_instruction_rect(self):
+        return self._instruction_rect
+
+    instruction_rect = pyqtProperty(QRectF, get_instruction_rect, set_instruction_rect)
 
     def update_instruction_rect(self):
         fm = QFontMetrics(self.instruction_font)
@@ -207,7 +207,7 @@ class CustomGraphicsView(QGraphicsView):
                 self.rubberBand.hide()
                 selection_polygon = self.mapToScene(self.rubberBand.geometry())
                 selection_rect = selection_polygon.boundingRect()
-                self.zoomToRect(selection_rect)
+                self.zoom_to_rect(selection_rect)
         else:
             super().mouseReleaseEvent(event)
         self.update_minimap()
@@ -218,18 +218,18 @@ class CustomGraphicsView(QGraphicsView):
         if self.is_expanded:
             self.shrink_instruction_rect()
 
-    def zoomToRect(self, rect):
+    def zoom_to_rect(self, rect):
         if not rect.isEmpty():
             self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
             self.updateSceneRect(self.sceneRect().united(rect))
-            self.updateZoomFactor()
+            self.update_zoom_factor()
             self.update_minimap()
 
     def update_minimap(self):
         if self.minimap.isVisible():
             self.minimap.update_minimap()
 
-    def updateZoomFactor(self):
+    def update_zoom_factor(self):
         current_transform = self.transform()
         current_scale = current_transform.m11()  # Horizontal scale factor
         self.zoomChanged.emit(current_scale)
@@ -240,6 +240,6 @@ class CustomGraphicsView(QGraphicsView):
                 self.scale(1.2, 1.2)
             else:
                 self.scale(1 / 1.2, 1 / 1.2)
-            self.updateZoomFactor()
+            self.update_zoom_factor()
         else:
             super().wheelEvent(event)

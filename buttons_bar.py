@@ -32,15 +32,15 @@ def add_buttons(form_widget):
 
     # Define button configurations
     buttons = [
-        ("resources/ripple.svg", "Re-Run", form_widget.reRunAll),
-        ("resources/fork.svg", "Fork", form_widget.cloneForm),
-        ("resources/clone.svg", "Clone Branch", form_widget.cloneBranch),
+        ("resources/ripple.svg", "Re-Run", form_widget.re_run_all),
+        ("resources/fork.svg", "Fork", form_widget.clone_form),
+        ("resources/clone.svg", "Clone Branch", form_widget.clone_branch),
         (
             "resources/bulb.svg",
             "Follow-up Questions",
-            form_widget.generateFollowUpQuestions,
+            form_widget.generate_follow_up_questions,
         ),
-        ("resources/delete.svg", "Delete", form_widget.deleteForm),
+        ("resources/delete.svg", "Delete", form_widget.delete_form),
     ]
 
     # Create and add buttons

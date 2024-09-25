@@ -63,9 +63,9 @@ class HeaderWidget(QGraphicsWidget):
         self.model_dropdown.setWidget(model_dropdown_widget)
 
         self.is_initialized = True
-        self.updateWidgetGeometry()
+        self.update_widget_geometry()
 
-    def updateWidgetGeometry(self):
+    def update_widget_geometry(self):
         if self.is_initialized:
             header_rect = self.boundingRect()
             # Position the model dropdown
@@ -78,7 +78,7 @@ class HeaderWidget(QGraphicsWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.updateWidgetGeometry()
+        self.update_widget_geometry()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
