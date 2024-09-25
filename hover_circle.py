@@ -29,7 +29,7 @@ class HoverCircle(QGraphicsEllipseItem):
         super().__init__(parent)
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
-        self.normal_radius = 15
+        self.normal_radius = 10
         self.hover_radius = 30
         self.setBrush(QBrush(QColor(70, 130, 180)))
         self.setPen(QPen(Qt.PenStyle.NoPen))
