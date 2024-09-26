@@ -141,16 +141,6 @@ class FormWidget(QGraphicsWidget):
         # Create a horizontal layout for emoji and input box
         input_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
 
-        # Create and add emoji label
-        self.emoji_label = self.create_emoji_label()
-        self.emoji_container = QWidget()
-        emoji_container_layout = QVBoxLayout(self.emoji_container)
-        emoji_container_layout.addWidget(self.emoji_label)
-        emoji_container_layout.setContentsMargins(0, 0, 0, 0)
-        self.emoji_proxy = QGraphicsProxyWidget()
-        self.emoji_proxy.setWidget(self.emoji_container)
-        input_layout.addItem(self.emoji_proxy)
-
         # Input box
         self.input_box = QGraphicsProxyWidget()
         self.input_text_edit = QTextEdit()
@@ -171,6 +161,16 @@ class FormWidget(QGraphicsWidget):
         self.input_text_edit.installEventFilter(self)
 
         input_layout.addItem(self.input_box)
+
+        # Create and add emoji label
+        self.emoji_label = self.create_emoji_label()
+        self.emoji_container = QWidget()
+        emoji_container_layout = QVBoxLayout(self.emoji_container)
+        emoji_container_layout.addWidget(self.emoji_label)
+        emoji_container_layout.setContentsMargins(0, 0, 0, 0)
+        self.emoji_proxy = QGraphicsProxyWidget()
+        self.emoji_proxy.setWidget(self.emoji_container)
+        input_layout.addItem(self.emoji_proxy)
 
         chat_layout.addItem(input_layout)
 
@@ -220,7 +220,15 @@ class FormWidget(QGraphicsWidget):
         emoji_label.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
         )
+        emoji_label.setCursor(
+            Qt.CursorShape.PointingHandCursor
+        )  # Change cursor on hover
+        emoji_label.mousePressEvent = self.emoji_label_clicked  # Connect click event
         return emoji_label
+
+    def emoji_label_clicked(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.submit_form()
 
     def resize_widget(self, new_size: QPointF):
         new_width = max(new_size.x(), self.minimumWidth())
