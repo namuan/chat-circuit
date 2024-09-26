@@ -29,7 +29,7 @@ build: clean pre-commit ## Build package
 context: clean ## Build context file from application sources
 	echo "Generating context in $(CONTEXT_DIR) directory"
 	mkdir -p $(CONTEXT_DIR)/
-	llm-context-builder.py --extensions .py --ignored_dirs build dist generated venv .idea .aider.tags.cache.v3 --print_contents > $(CONTEXT_DIR)/chat-circuit.py
+	llm-context-builder.py --extensions .py --ignored_dirs build dist generated venv .venv .idea .aider.tags.cache.v3 --print_contents > $(CONTEXT_DIR)/chat-circuit.py
 
 run: ## Runs the application
 	export PYTHONPATH=`pwd`:$PYTHONPATH && ./venv/bin/python3 main.py
