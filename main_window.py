@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 from command_invoker import CommandInvoker
 from commands import CreateFormCommand
 from form_widget import FormWidget
+from json_canvas_exporter import JsonCanvasExporter
 from state_manager import StateManager
 from views import CustomGraphicsView
 
@@ -106,6 +107,20 @@ class MainWindow(QMainWindow):
         reset_zoom_action.setShortcut(QKeySequence("Ctrl+0"))
         reset_zoom_action.triggered.connect(self.reset_zoom)
         view_menu.addAction(reset_zoom_action)
+
+        export_action = QAction("Export to JSON Canvas", self)
+        export_action.triggered.connect(self.export_to_json_canvas)
+        file_menu.addAction(export_action)
+
+    def export_to_json_canvas(self):
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "Export to JSON Canvas", "", "Canvas Files (*.canvas)"
+        )
+        if not file_name:
+            return
+
+        exporter = JsonCanvasExporter(self.scene)
+        exporter.export(file_name)
 
     def new_document(self):
         self.state_manager.save_last_file("")
