@@ -3,7 +3,7 @@ from collections import deque
 
 from PyQt6.QtCore import QPointF, QThreadPool, pyqtSignal, QRectF, QSizeF
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QBrush, QColor, QIcon, QCursor, QPen, QFont
+from PyQt6.QtGui import QBrush, QColor, QIcon, QCursor, QPen, QFont, QAction
 from PyQt6.QtWidgets import (
     QGraphicsItem,
     QGraphicsLinearLayout,
@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QWidget,
     QVBoxLayout,
+    QMenu,
 )
 
 from buttons_bar import add_buttons
@@ -137,6 +138,12 @@ class FormWidget(QGraphicsWidget):
         )
         self.conversation_area.setWidget(conversation_widget)
         chat_layout.addItem(self.conversation_area)
+        self.conversation_area.widget().setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.conversation_area.widget().customContextMenuRequested.connect(
+            self.show_context_menu
+        )
 
         # Create a horizontal layout for emoji and input box
         input_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
@@ -205,6 +212,30 @@ class FormWidget(QGraphicsWidget):
 
         self.circle_item = HoverCircle(self)
         self.circle_item.setZValue(2)
+
+    def show_context_menu(self, position):
+        context_menu = QMenu()
+        create_new_form_action = QAction("Create New Form with Selection", self)
+        create_new_form_action.triggered.connect(self.create_new_form_from_selection)
+        context_menu.addAction(create_new_form_action)
+
+        # Show the context menu
+        context_menu.exec(self.conversation_area.widget().mapToGlobal(position))
+
+    def create_new_form_from_selection(self):
+        selected_text = self.conversation_area.widget().textCursor().selectedText()
+        if selected_text:
+            # Get the scene and create a new position for the new form
+            scene = self.scene()
+            new_pos = self.pos() + QPointF(500, 200)  # Offset from current form
+
+            # Create a new form using the existing CreateFormCommand
+            from commands import CreateFormCommand
+
+            command = CreateFormCommand(scene, self, new_pos, self.model)
+            scene.command_invoker.execute(command)
+            new_form = command.created_form
+            new_form.input_box.widget().setPlainText(selected_text)
 
     def create_emoji_label(self):
         emoji_label = QLabel("❓")  # You can change this to any emoji you prefer
