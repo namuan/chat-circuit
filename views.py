@@ -212,7 +212,10 @@ class CustomGraphicsView(QGraphicsView):
         self.viewport().update()
 
     def mousePressEvent(self, event):
-        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+        ) or (event.button() == Qt.MouseButton.MiddleButton):
             self.is_selecting = True
             self.origin = event.pos()
             if not self.rubberBand:
@@ -224,7 +227,7 @@ class CustomGraphicsView(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         if self.is_selecting:
-            self.rubberBand.setGeometry(QRect(self.origin, event.pos()))
+            self.rubberBand.setGeometry(QRect(self.origin, event.pos()).normalized())
         else:
             super().mouseMoveEvent(event)
         self.minimap.update_minimap()
@@ -243,12 +246,19 @@ class CustomGraphicsView(QGraphicsView):
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def mouseReleaseEvent(self, event):
-        if self.is_selecting:
+        if self.is_selecting and (
+            (
+                event.button() == Qt.MouseButton.LeftButton
+                and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+            )
+            or (event.button() == Qt.MouseButton.MiddleButton)
+        ):
             self.is_selecting = False
             if self.rubberBand:
                 self.rubberBand.hide()
-                selection_polygon = self.mapToScene(self.rubberBand.geometry())
-                selection_rect = selection_polygon.boundingRect()
+                selection_rect = self.mapToScene(
+                    self.rubberBand.geometry()
+                ).boundingRect()
                 self.zoom_to_rect(selection_rect)
         else:
             super().mouseReleaseEvent(event)
