@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APPLICATION_TITLE)
 
         self.scene = GraphicsScene()
-        self.view = CustomGraphicsView(self.scene)
+        self.view = CustomGraphicsView(self.scene, initial_zoom=1.0)
         self.view.zoomChanged.connect(self.on_zoom_changed)
         self.setCentralWidget(self.view)
 
@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
                 document_data = json.load(f)
 
         self.zoom_factor = document_data.get("zoom_factor", self.zoom_factor)
-        self.update_zoom()
+        self.view.zoom_to(self.zoom_factor)
 
         self.scene.clear()
         for form_data in document_data.get("canvas_state", []):

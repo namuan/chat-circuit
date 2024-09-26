@@ -9,15 +9,16 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtCore import Qt, QRectF, QPoint, QRect
 from PyQt6.QtGui import QFont, QColor, QPainter, QFontMetrics
-from PyQt6.QtWidgets import QGraphicsView, QRubberBand
+from PyQt6.QtWidgets import QGraphicsView, QRubberBand, QScrollBar
 
 from minimap import MiniMap
+from PyQt6.QtGui import QTransform
 
 
 class CustomGraphicsView(QGraphicsView):
     zoomChanged = pyqtSignal(float)
 
-    def __init__(self, scene):
+    def __init__(self, scene, initial_zoom=1.0):
         super().__init__(scene)
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
@@ -40,6 +41,24 @@ class CustomGraphicsView(QGraphicsView):
         self.minimap = MiniMap(self)
         self.minimap.setParent(self.viewport())
         self.minimap.hide()  # Hide initially, show after the first resizeEvent
+
+        # Set minimum and maximum zoom levels
+        self.min_zoom = 0.1
+        self.max_zoom = 5.0
+        self.current_zoom = initial_zoom
+
+        # Create zoom scroll bar
+        self.zoom_scrollbar = QScrollBar(Qt.Orientation.Horizontal, self)
+        self.zoom_scrollbar.setRange(0, 100)
+        initial_scrollbar_value = int(
+            ((self.current_zoom - self.min_zoom) / (self.max_zoom - self.min_zoom))
+            * 100
+        )
+        self.zoom_scrollbar.setValue(initial_scrollbar_value)
+        self.zoom_scrollbar.valueChanged.connect(self.zoom_scrollbar_changed)
+
+        # Apply initial zoom
+        self.zoom_to(self.current_zoom)
 
         # Update mini-map periodically
         self.update_timer = QTimer(self)
@@ -104,12 +123,35 @@ class CustomGraphicsView(QGraphicsView):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.minimap.setGeometry(10, self.height() - 160, 200, 150)
-        self.minimap.show()
+        self.update_minimap_and_scrollbar()
         self.viewport().update()
 
         # Update the instruction rectangle size
         self.update_instruction_rect()
+
+    def update_minimap_and_scrollbar(self):
+        minimap_width = 200
+        minimap_height = 150
+        scrollbar_height = 15
+        margin = 10
+
+        # Position zoom scrollbar
+        self.zoom_scrollbar.setGeometry(
+            margin,
+            self.height() - minimap_height - scrollbar_height - margin,
+            minimap_width,
+            scrollbar_height,
+        )
+
+        # Position minimap
+        self.minimap.setGeometry(
+            margin,
+            self.height() - minimap_height - margin,
+            minimap_width,
+            minimap_height,
+        )
+        self.minimap.show()
+        self.zoom_scrollbar.show()
 
     def set_instruction_rect(self, rect):
         if self._instruction_rect != rect:
@@ -232,14 +274,49 @@ class CustomGraphicsView(QGraphicsView):
     def update_zoom_factor(self):
         current_transform = self.transform()
         current_scale = current_transform.m11()  # Horizontal scale factor
+        self.current_zoom = current_scale
         self.zoomChanged.emit(current_scale)
+
+        # Update scrollbar value
+        scrollbar_value = int(
+            ((self.current_zoom - self.min_zoom) / (self.max_zoom - self.min_zoom))
+            * 100
+        )
+        self.zoom_scrollbar.setValue(scrollbar_value)
 
     def wheelEvent(self, event):
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            zoom_in_factor = 1.2
+            zoom_out_factor = 1 / zoom_in_factor
+
             if event.angleDelta().y() > 0:
-                self.scale(1.2, 1.2)
+                zoom_factor = zoom_in_factor
             else:
-                self.scale(1 / 1.2, 1 / 1.2)
-            self.update_zoom_factor()
+                zoom_factor = zoom_out_factor
+
+            resulting_zoom = self.current_zoom * zoom_factor
+            if self.min_zoom <= resulting_zoom <= self.max_zoom:
+                self.current_zoom = resulting_zoom
+                self.zoom_to(self.current_zoom)
+
+                # Update scrollbar value
+                scrollbar_value = int(
+                    (
+                        (self.current_zoom - self.min_zoom)
+                        / (self.max_zoom - self.min_zoom)
+                    )
+                    * 100
+                )
+                self.zoom_scrollbar.setValue(scrollbar_value)
         else:
             super().wheelEvent(event)
+
+    def zoom_scrollbar_changed(self, value):
+        zoom_factor = self.min_zoom + (value / 100) * (self.max_zoom - self.min_zoom)
+        self.zoom_to(zoom_factor)
+
+    def zoom_to(self, factor):
+        self.current_zoom = factor
+        self.setTransform(QTransform().scale(factor, factor))
+        self.zoomChanged.emit(factor)
+        self.update_minimap()
