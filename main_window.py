@@ -1,7 +1,7 @@
 import json
 import os
 
-from PyQt6.QtCore import Qt, pyqtSignal, QRectF
+from PyQt6.QtCore import Qt, pyqtSignal, QRectF, QTimer
 from PyQt6.QtGui import QAction, QKeySequence, QTransform
 from PyQt6.QtWidgets import (
     QFileDialog,
@@ -25,6 +25,9 @@ class GraphicsScene(QGraphicsScene):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.command_invoker = CommandInvoker()
+        self.update_timer = QTimer()
+        self.update_timer.setSingleShot(True)
+        self.update_timer.timeout.connect(self.itemMoved.emit)
 
     def addItem(self, item):
         super().addItem(item)
@@ -32,7 +35,7 @@ class GraphicsScene(QGraphicsScene):
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
-        self.itemMoved.emit()
+        self.update_timer.start(100)
 
     def mousePressEvent(self, event):
         if (
@@ -67,8 +70,13 @@ class MainWindow(QMainWindow):
 
         self.scene.itemAdded.connect(self.update_scene_rect)
         self.scene.itemMoved.connect(self.update_scene_rect)
+        self.is_updating_scene_rect = False
 
     def update_scene_rect(self):
+        if self.is_updating_scene_rect:
+            return
+        self.is_updating_scene_rect = True
+
         # Calculate the bounding rect of all items
         items_rect = QRectF()
         for item in self.scene.items():
@@ -81,6 +89,8 @@ class MainWindow(QMainWindow):
         # Update the scene rect
         self.scene.setSceneRect(new_rect)
         self.view.updateSceneRect(new_rect)
+
+        self.is_updating_scene_rect = False
 
     def on_zoom_changed(self, zoom_factor):
         self.zoom_factor = zoom_factor
