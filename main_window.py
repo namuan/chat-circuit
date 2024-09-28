@@ -1,7 +1,7 @@
 import json
 import os
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal, QRectF
 from PyQt6.QtGui import QAction, QKeySequence, QTransform
 from PyQt6.QtWidgets import (
     QFileDialog,
@@ -19,9 +19,20 @@ from views import CustomGraphicsView
 
 
 class GraphicsScene(QGraphicsScene):
+    itemAdded = pyqtSignal()
+    itemMoved = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.command_invoker = CommandInvoker()
+
+    def addItem(self, item):
+        super().addItem(item)
+        self.itemAdded.emit()
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        self.itemMoved.emit()
 
     def mousePressEvent(self, event):
         if (
@@ -53,6 +64,23 @@ class MainWindow(QMainWindow):
         self.zoom_factor = 1.0
         self.create_menu()
         self.restore_application_state()
+
+        self.scene.itemAdded.connect(self.update_scene_rect)
+        self.scene.itemMoved.connect(self.update_scene_rect)
+
+    def update_scene_rect(self):
+        # Calculate the bounding rect of all items
+        items_rect = QRectF()
+        for item in self.scene.items():
+            items_rect = items_rect.united(item.sceneBoundingRect())
+
+        # Add some margin
+        margin = 200
+        new_rect = items_rect.adjusted(-margin, -margin, margin, margin)
+
+        # Update the scene rect
+        self.scene.setSceneRect(new_rect)
+        self.view.updateSceneRect(new_rect)
 
     def on_zoom_changed(self, zoom_factor):
         self.zoom_factor = zoom_factor
