@@ -215,7 +215,7 @@ class FormWidget(QGraphicsWidget):
 
     def show_context_menu(self, position):
         context_menu = QMenu()
-        create_new_form_action = QAction("Create New Form with Selection", self)
+        create_new_form_action = QAction("Explain this ...", self)
         create_new_form_action.triggered.connect(self.create_new_form_from_selection)
         context_menu.addAction(create_new_form_action)
 
@@ -235,7 +235,7 @@ class FormWidget(QGraphicsWidget):
             command = CreateFormCommand(scene, self, new_pos, self.model)
             scene.command_invoker.execute(command)
             new_form = command.created_form
-            new_form.input_box.widget().setPlainText(selected_text)
+            new_form.input_box.widget().setPlainText(f"Explain {selected_text}")
 
     def create_emoji_label(self):
         emoji_label = QLabel("❓")  # You can change this to any emoji you prefer
