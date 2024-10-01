@@ -1,11 +1,13 @@
 # state_manager.py
 
 from PyQt6.QtCore import QSettings
+import keyring
 
 
 class StateManager:
     def __init__(self, company, application):
         self.settings = QSettings(company, application)
+        self.keyring_service = f"{company}-{application}"
 
     def save_window_state(self, window):
         self.settings.setValue("window_geometry", window.saveGeometry())
@@ -29,3 +31,12 @@ class StateManager:
 
     def clear_settings(self):
         self.settings.clear()
+
+    def save_jina_api_key(self, jina_api_key):
+        keyring.set_password(self.keyring_service, "jina_api_key", jina_api_key)
+
+    def get_jina_api_key(self):
+        return keyring.get_password(self.keyring_service, "jina_api_key") or ""
+
+    def clear_jina_api_key(self):
+        keyring.delete_password(self.keyring_service, "jina_api_key")

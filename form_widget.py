@@ -1,4 +1,5 @@
 import random
+import re
 from collections import deque
 
 from PyQt6.QtCore import QPointF, QThreadPool, pyqtSignal, QRectF, QSizeF
@@ -22,8 +23,8 @@ from buttons_bar import add_buttons
 from header_widget import HeaderWidget
 from hover_circle import HoverCircle
 from link_line import LinkLine
-from worker import Worker
 from markdown_render import HtmlRenderer
+from worker import JinaReaderWorker, LlmWorker
 
 thread_pool = QThreadPool()
 active_workers = 0
@@ -103,7 +104,8 @@ class FormWidget(QGraphicsWidget):
         self.link_line = None
 
         # Re-Run all form nodes
-        self.worker = None
+        self.llm_worker = None
+        self.jina_worker = None
         self.form_chain = deque()
 
         # Create main layout
@@ -369,7 +371,7 @@ class FormWidget(QGraphicsWidget):
         context_data.append(dict(role="user", content=prompt))
 
         # Create a new worker to handle the LLM request
-        self.worker = Worker(self.model, self.system_message, context_data)
+        self.worker = LlmWorker(self.model, self.system_message, context_data)
         self.worker.signals.update.connect(self.handle_follow_up_questions)
         self.worker.signals.finished.connect(self.handle_finished)
         self.worker.signals.error.connect(self.handle_error)
@@ -457,11 +459,36 @@ class FormWidget(QGraphicsWidget):
         self.process_next_form()
 
     def submit_form(self):
-        if (
-            not self.input_box.widget().toPlainText().strip()
-        ):  # Check if input is not empty
+        input_text = self.input_box.widget().toPlainText().strip()
+        if not input_text:
             return
 
+        # Check if the input is a URL
+        url_pattern = re.compile(
+            r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+"
+        )
+        if url_pattern.match(input_text):
+            self.fetch_jina_reader_content(input_text)
+        else:
+            self.process_llm_request(input_text)
+
+    def fetch_jina_reader_content(self, url):
+        main_window = self.scene().views()[0].window()
+        jina_api_key = main_window.jina_api_key
+
+        self.jina_worker = JinaReaderWorker(url, jina_api_key)
+        self.jina_worker.signals.result.connect(self.handle_jina_reader_content)
+        self.jina_worker.signals.error.connect(self.handle_error)
+
+        self.highlight_hierarchy()
+        QThreadPool.globalInstance().start(self.jina_worker)
+        self.start_processing()
+
+    def handle_jina_reader_content(self, content):
+        self.stop_processing()
+        self.update_answer(content)
+
+    def process_llm_request(self, input_text):
         form_data = self.gather_form_data()
         context_data = []
         for i, data in enumerate(form_data):
@@ -470,18 +497,16 @@ class FormWidget(QGraphicsWidget):
                 message = dict(role="user", content=context)
                 context_data.append(message)
 
-        current_message = dict(
-            role="user", content=self.input_box.widget().toPlainText()
-        )
+        current_message = dict(role="user", content=input_text)
         context_data.append(current_message)
 
-        self.worker = Worker(self.model, self.system_message, context_data)
-        self.worker.signals.update.connect(self.handle_update)
-        self.worker.signals.finished.connect(self.handle_finished)
-        self.worker.signals.error.connect(self.handle_error)
+        self.llm_worker = LlmWorker(self.model, self.system_message, context_data)
+        self.llm_worker.signals.update.connect(self.handle_update)
+        self.llm_worker.signals.finished.connect(self.handle_finished)
+        self.llm_worker.signals.error.connect(self.handle_error)
 
         self.highlight_hierarchy()
-        thread_pool.start(self.worker)
+        QThreadPool.globalInstance().start(self.llm_worker)
         self.start_processing()
 
     def start_processing(self):
@@ -493,7 +518,8 @@ class FormWidget(QGraphicsWidget):
         global active_workers
         active_workers -= 1
         self.header.stop_processing()
-        self.worker.signals.notify_child.emit()
+        if self.llm_worker:
+            self.llm_worker.signals.notify_child.emit()
 
     def on_model_changed(self, new_model):
         self.model = new_model

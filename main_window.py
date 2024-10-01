@@ -8,10 +8,12 @@ from PyQt6.QtWidgets import (
     QGraphicsScene,
     QMainWindow,
     QMessageBox,
+    QDialog,
 )
 
 from command_invoker import CommandInvoker
 from commands import CreateFormCommand
+from config_dialog import ConfigDialog
 from form_widget import FormWidget
 from json_canvas_exporter import JsonCanvasExporter
 from state_manager import StateManager
@@ -71,6 +73,8 @@ class MainWindow(QMainWindow):
         self.scene.itemAdded.connect(self.update_scene_rect)
         self.scene.itemMoved.connect(self.update_scene_rect)
         self.is_updating_scene_rect = False
+
+        self.jina_api_key = self.state_manager.get_jina_api_key()
 
     def update_scene_rect(self):
         if self.is_updating_scene_rect:
@@ -149,6 +153,22 @@ class MainWindow(QMainWindow):
         export_action = QAction("Export to JSON Canvas", self)
         export_action.triggered.connect(self.export_to_json_canvas)
         file_menu.addAction(export_action)
+
+        config_menu = self.menuBar().addMenu("Configuration")
+
+        api_config_action = QAction("API Configuration", self)
+        api_config_action.triggered.connect(self.show_config_dialog)
+        config_menu.addAction(api_config_action)
+
+    def show_config_dialog(self):
+        dialog = ConfigDialog(self)
+        dialog.set_jina_api_key(self.jina_api_key)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.jina_api_key = dialog.get_jina_api_key()
+            self.state_manager.save_jina_api_key(self.jina_api_key)
+            QMessageBox.information(
+                self, "Configuration", "Jina API Key saved successfully!"
+            )
 
     def export_to_json_canvas(self):
         file_name, _ = QFileDialog.getSaveFileName(

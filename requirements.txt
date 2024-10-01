@@ -1,3 +1,5 @@
 PyQt6==6.7.0
 mistune
 litellm
+keyring
+requests
