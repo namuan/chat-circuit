@@ -80,7 +80,7 @@ The default model is the first one in that list
 You can also run this command to generate the `models.conf` file
 
 ```shell
-ollama list | tail -n +2 | awk '{print $1}' > models.conf
+ollama list | tail -n +2 | awk '{print "ollama_chat/"$1}' > models.conf
 ```
 
 Note: If models.conf is not found, the application will use a default set of models.
