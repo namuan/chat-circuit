@@ -349,74 +349,122 @@ class HeaderWidget(QGraphicsWidget):
     def __init__(self, model_name):
         super().__init__()
 
+        self.prompt_button = QPushButton("System Prompt")
+        self.model_dropdown = QComboBox()
+        self.progress_bar = QProgressBar()
         self.model_name = model_name
-
-        self.progress_bar = None
-        self.model_label = None
         self.is_initialized = False
 
-        self.setMinimumHeight(30)
+        self.setMinimumHeight(30)  # Reduced height
         self.setMaximumHeight(30)
 
-        # Schedule the creation of the progress bar and model label for the next event loop iteration
         QTimer.singleShot(0, self.create_widgets)
 
     def create_widgets(self):
-        # Create progress bar
-        progress_bar_widget = QProgressBar()
-        progress_bar_widget.setRange(0, 0)  # Set to indeterminate mode
-        progress_bar_widget.setTextVisible(False)
-        progress_bar_widget.setFixedHeight(20)
-        progress_bar_widget.setStyleSheet(
-            """
-            QProgressBar::chunk {
-                background-color: #3498db;
-            }
-        """
-        )
+        container = QWidget()
+        main_layout = QVBoxLayout(container)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        self.progress_bar = QGraphicsProxyWidget(self)
-        self.progress_bar.setWidget(progress_bar_widget)
-        self.progress_bar.hide()
+        top_layout = QHBoxLayout()
+        top_layout.setSpacing(5)
 
-        # Create model dropdown
-        model_dropdown_widget = QComboBox()
-        model_dropdown_widget.addItems(LLM_MODELS)
-        model_dropdown_widget.setStyleSheet(
+        self.model_dropdown.addItems(LLM_MODELS)
+        self.model_dropdown.setStyleSheet(
             """
             QComboBox {
-                padding: 1px 18px 1px 3px;
-                min-width: 6em;
-                background: darkgray;
+                background-color: #2c3e50;
+                color: #ecf0f1;
+                border: 1px solid #34495e;
+                border-radius: 3px;
+                padding: 5px 25px 5px 5px;
+                min-height: 20px;
             }
-        """
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left: 1px solid #34495e;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: none;  /* Remove default arrow image */
+                width: 10px;
+                height: 15px;
+                margin-right: 5px;
+            }
+            QComboBox::down-arrow:on {
+                top: 1px;
+                left: 1px;
+            }
+            QComboBox::down-arrow::after {
+                content: "";
+                display: block;
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #ecf0f1;  /* Arrow color */
+            }
+            QComboBox QAbstractItemView {
+                background-color: #34495e;
+                color: #ecf0f1;
+                selection-background-color: #3498db;
+            }
+            """
         )
-        model_dropdown_widget.currentTextChanged.connect(self.on_model_changed)
+        self.model_dropdown.currentTextChanged.connect(self.on_model_changed)
+        top_layout.addWidget(self.model_dropdown, 1)
 
-        self.model_dropdown = QGraphicsProxyWidget(self)
-        self.model_dropdown.setWidget(model_dropdown_widget)
+        self.prompt_button.setStyleSheet(
+            """
+            QPushButton {
+                border: 1px solid;
+                border-radius: 3px;
+                padding: 3px;
+                min-width: 100px;
+                min-height: 20px;
+                max-width: 100px;
+                max-height: 20px;
+            }
+            """
+        )
+        self.prompt_button.clicked.connect(self.on_prompt_button_clicked)
+        top_layout.addWidget(self.prompt_button)
+
+        main_layout.addLayout(top_layout)
+
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(3)
+        self.progress_bar.setStyleSheet(
+            """
+            QProgressBar {
+                background-color: #ecf0f1;
+                border: none;
+                border-radius: 1px;
+            }
+            QProgressBar::chunk {
+                background-color: #e74c3c;
+                border-radius: 1px;
+            }
+            """
+        )
+        self.progress_bar.hide()
+
+        main_layout.addWidget(self.progress_bar)
+
+        proxy = QGraphicsProxyWidget(self)
+        proxy.setWidget(container)
+
+        layout = QGraphicsLinearLayout(Qt.Orientation.Vertical)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addItem(proxy)
+        self.setLayout(layout)
 
         self.is_initialized = True
-        self.update_widget_geometry()
-
-    def update_widget_geometry(self):
-        if self.is_initialized:
-            header_rect = self.boundingRect()
-            # Position the model dropdown
-            self.model_dropdown.setGeometry(QRectF(0, 0, header_rect.width(), 30))
-            # Position the progress bar at the bottom
-            self.progress_bar.setGeometry(
-                QRectF(0, header_rect.height() - 15, header_rect.width(), 5)
-            )
-            self.update_model_name()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.update_widget_geometry()
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            super().mousePressEvent(event)
+        self.update_model_name()
 
     def start_processing(self):
         if self.is_initialized and self.progress_bar:
@@ -432,7 +480,11 @@ class HeaderWidget(QGraphicsWidget):
 
     def update_model_name(self):
         if self.is_initialized and self.model_dropdown:
-            self.model_dropdown.widget().setCurrentText(self.model_name)
+            self.model_dropdown.setCurrentText(self.model_name)
+
+    def on_prompt_button_clicked(self):
+        if self.model_dropdown:
+            self.model_dropdown.showPopup()
 
 
 class CircleAnimator(QObject):
