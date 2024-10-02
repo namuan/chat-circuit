@@ -12,10 +12,6 @@ deps: ## Install dependencies
 	./venv/bin/pip3 install --upgrade -r requirements-dev.txt
 	./venv/bin/python3 -m pip install --upgrade pip
 
-clean: ## Clean package
-	find . -type d -name '__pycache__' | xargs rm -rf
-	rm -rf build dist
-
 pre-commit: ## Manually run all pre-commit hooks
 	./venv/bin/pre-commit install
 	./venv/bin/pre-commit run --all-files
@@ -23,8 +19,15 @@ pre-commit: ## Manually run all pre-commit hooks
 pre-commit-tool: ## Manually run a single pre-commit hook
 	./venv/bin/pre-commit run $(TOOL) --all-files
 
-build: clean pre-commit ## Build package
-	echo "✅ Done"
+clean: ## Clean package
+	find . -type d -name '__pycache__' | xargs rm -rf
+	rm -rf build dist
+
+package: clean pre-commit ## Run installer
+	pyinstaller app.spec
+
+install-macosx: package ## Installs application in users Application folder
+	./scripts/install-macosx.sh ChatCircuit.app
 
 context: clean ## Build context file from application sources
 	echo "Generating context in $(CONTEXT_DIR) directory"

@@ -4,3 +4,4 @@ models.conf
 crash.log
 uncompressed.py
 build/
+dist/

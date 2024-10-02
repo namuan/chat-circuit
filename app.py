@@ -80,6 +80,17 @@ faulthandler.dump_traceback(open("crash.log", "w"))
 APPLICATION_TITLE = "Chat Circuit"
 
 
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
 def load_models_from_config(config_file="models.conf"):
     config_path = os.path.join(os.path.dirname(__file__), config_file)
 
@@ -156,15 +167,19 @@ def add_buttons(form_widget):
 
     # Define button configurations
     buttons = [
-        ("resources/ripple.svg", "Re-Run", form_widget.re_run_all),
-        ("resources/fork.svg", "Fork", form_widget.clone_form),
-        ("resources/clone.svg", "Clone Branch", form_widget.clone_branch),
+        (resource_path("resources/ripple.svg"), "Re-Run", form_widget.re_run_all),
+        (resource_path("resources/fork.svg"), "Fork", form_widget.clone_form),
         (
-            "resources/bulb.svg",
+            resource_path("resources/clone.svg"),
+            "Clone Branch",
+            form_widget.clone_branch,
+        ),
+        (
+            resource_path("resources/bulb.svg"),
             "Follow-up Questions",
             form_widget.generate_follow_up_questions,
         ),
-        ("resources/delete.svg", "Delete", form_widget.delete_form),
+        (resource_path("resources/delete.svg"), "Delete", form_widget.delete_form),
     ]
 
     # Create and add buttons
@@ -1943,7 +1958,7 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon("resources/icon.png"))
+    app.setWindowIcon(QIcon(resource_path("resources/icon.png")))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
