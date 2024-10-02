@@ -371,13 +371,13 @@ class FormWidget(QGraphicsWidget):
         context_data.append(dict(role="user", content=prompt))
 
         # Create a new worker to handle the LLM request
-        self.worker = LlmWorker(self.model, self.system_message, context_data)
-        self.worker.signals.update.connect(self.handle_follow_up_questions)
-        self.worker.signals.finished.connect(self.handle_finished)
-        self.worker.signals.error.connect(self.handle_error)
+        self.llm_worker = LlmWorker(self.model, self.system_message, context_data)
+        self.llm_worker.signals.update.connect(self.handle_follow_up_questions)
+        self.llm_worker.signals.finished.connect(self.handle_finished)
+        self.llm_worker.signals.error.connect(self.handle_error)
 
         self.highlight_hierarchy()
-        thread_pool.start(self.worker)
+        thread_pool.start(self.llm_worker)
         self.start_processing()
 
     def handle_follow_up_questions(self, text):
