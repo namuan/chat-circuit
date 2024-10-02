@@ -349,7 +349,6 @@ class HeaderWidget(QGraphicsWidget):
     def __init__(self, model_name):
         super().__init__()
 
-        self.prompt_button = QPushButton("System Prompt")
         self.model_dropdown = QComboBox()
         self.progress_bar = QProgressBar()
         self.model_name = model_name
@@ -365,9 +364,6 @@ class HeaderWidget(QGraphicsWidget):
         main_layout = QVBoxLayout(container)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-
-        top_layout = QHBoxLayout()
-        top_layout.setSpacing(5)
 
         self.model_dropdown.addItems(LLM_MODELS)
         self.model_dropdown.setStyleSheet(
@@ -415,25 +411,8 @@ class HeaderWidget(QGraphicsWidget):
             """
         )
         self.model_dropdown.currentTextChanged.connect(self.on_model_changed)
-        top_layout.addWidget(self.model_dropdown, 1)
 
-        self.prompt_button.setStyleSheet(
-            """
-            QPushButton {
-                border: 1px solid;
-                border-radius: 3px;
-                padding: 3px;
-                min-width: 100px;
-                min-height: 20px;
-                max-width: 100px;
-                max-height: 20px;
-            }
-            """
-        )
-        self.prompt_button.clicked.connect(self.on_prompt_button_clicked)
-        top_layout.addWidget(self.prompt_button)
-
-        main_layout.addLayout(top_layout)
+        main_layout.addWidget(self.model_dropdown)
 
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setTextVisible(False)
@@ -481,10 +460,6 @@ class HeaderWidget(QGraphicsWidget):
     def update_model_name(self):
         if self.is_initialized and self.model_dropdown:
             self.model_dropdown.setCurrentText(self.model_name)
-
-    def on_prompt_button_clicked(self):
-        if self.model_dropdown:
-            self.model_dropdown.showPopup()
 
 
 class CircleAnimator(QObject):
