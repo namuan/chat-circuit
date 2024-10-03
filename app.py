@@ -39,6 +39,7 @@ from PyQt6.QtGui import QCursor
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtGui import QPainter
 from PyQt6.QtGui import QPen
@@ -803,7 +804,7 @@ class FormWidget(QGraphicsWidget):
         self.input_text_edit.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
         )
-        self.input_text_edit.textChanged.connect(self.adjustInputBoxHeight)
+        self.input_text_edit.textChanged.connect(self.adjust_input_box_height)
         self.input_box.setWidget(self.input_text_edit)
         self.input_box.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
@@ -836,7 +837,7 @@ class FormWidget(QGraphicsWidget):
         self.main_layout.addItem(bottom_layout)
 
         # Set the layout for this widget
-        QTimer.singleShot(0, self.setFocusToInput)
+        QTimer.singleShot(0, self.set_focus_to_input)
 
         self.background_item = QGraphicsRectItem(self.boundingRect(), self)
         self.background_item.setBrush(QBrush(QColor(240, 240, 240)))
@@ -927,7 +928,7 @@ class FormWidget(QGraphicsWidget):
                 return True
         return super().eventFilter(obj, event)
 
-    def adjustInputBoxHeight(self):
+    def adjust_input_box_height(self):
         document = self.input_text_edit.document()
         new_height = max(
             document.size().height() + 10, 30
@@ -959,7 +960,7 @@ class FormWidget(QGraphicsWidget):
         if self.parent_form:
             self.parent_form.highlight_hierarchy()
 
-    def setFocusToInput(self):
+    def set_focus_to_input(self):
         self.input_text_edit.setFocus()
 
     def moveBy(self, dx, dy):
@@ -1750,16 +1751,30 @@ class GraphicsScene(QGraphicsScene):
             event.button() == Qt.MouseButton.LeftButton
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
-            command = CreateFormCommand(self)
-            self.command_invoker.execute(command)
-            new_form = command.created_form
-            new_form.setPos(event.scenePos())
+            self.create_new_form(event.scenePos())
         else:
             super().mousePressEvent(event)
 
+    def keyPressEvent(self, event: QKeyEvent):
+        if (
+            event.key() == Qt.Key.Key_I
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
+            view = self.views()[0]
+            center = view.mapToScene(view.viewport().rect().center())
+            self.create_new_form(center)
+        else:
+            super().keyPressEvent(event)
+
+    def create_new_form(self, position):
+        command = CreateFormCommand(self)
+        self.command_invoker.execute(command)
+        new_form = command.created_form
+        new_form.setPos(position)
+
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, auto_load_state=True):
         super().__init__()
         self.state_manager = StateManager("deskriders", "chatcircuit")
         self.setWindowTitle(APPLICATION_TITLE)
@@ -1771,13 +1786,15 @@ class MainWindow(QMainWindow):
 
         self.zoom_factor = 1.0
         self.create_menu()
-        self.restore_application_state()
 
         self.scene.itemAdded.connect(self.update_scene_rect)
         self.scene.itemMoved.connect(self.update_scene_rect)
         self.is_updating_scene_rect = False
 
         self.jina_api_key = self.state_manager.get_jina_api_key()
+
+        if auto_load_state:
+            self.restore_application_state()
 
     def update_scene_rect(self):
         if self.is_updating_scene_rect:
@@ -1924,6 +1941,8 @@ class MainWindow(QMainWindow):
         if os.path.exists(file_name):
             with open(file_name) as f:
                 document_data = json.load(f)
+        else:
+            raise LookupError(f"Unable to find file {file_name}")
 
         self.zoom_factor = document_data.get("zoom_factor", self.zoom_factor)
         self.view.zoom_to(self.zoom_factor)

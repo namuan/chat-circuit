@@ -38,6 +38,9 @@ context: clean ## Build context file from application sources
 run: ## Runs the application
 	export PYTHONPATH=`pwd`:$PYTHONPATH && ./venv/bin/python3 main.py
 
+test: ## Tests the application
+	./venv/bin/pytest -v
+
 .PHONY: help
 .DEFAULT_GOAL := help
 

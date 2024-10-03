@@ -1,4 +1,4 @@
-fail_fast: false
+fail_fast: true
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.3.0
@@ -42,3 +42,11 @@ repos:
         args: [ --fix ]
       - id: ruff-format # formatter
         types_or: [ python, pyi, jupyter, toml ]
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: pytest
+        language: system
+        pass_filenames: false
+        always_run: true
