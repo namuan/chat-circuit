@@ -1115,7 +1115,7 @@ class FormWidget(QGraphicsWidget):
         self.jina_worker.signals.error.connect(self.handle_error)
 
         self.highlight_hierarchy()
-        QThreadPool.globalInstance().start(self.jina_worker)
+        thread_pool.start(self.jina_worker)
         self.start_processing()
 
     def handle_jina_reader_content(self, content):
@@ -1125,7 +1125,7 @@ class FormWidget(QGraphicsWidget):
     def process_llm_request(self, input_text):
         form_data = self.gather_form_data()
         context_data = []
-        for i, data in enumerate(form_data):
+        for data in form_data:
             context = data["context"]
             if context:
                 message = dict(role="user", content=context)
@@ -1140,7 +1140,7 @@ class FormWidget(QGraphicsWidget):
         self.llm_worker.signals.error.connect(self.handle_error)
 
         self.highlight_hierarchy()
-        QThreadPool.globalInstance().start(self.llm_worker)
+        thread_pool.start(self.llm_worker)
         self.start_processing()
 
     def start_processing(self):
@@ -1176,14 +1176,14 @@ class FormWidget(QGraphicsWidget):
 
     def gather_form_data(self):
         data = []
-        current_form = self.parent_form or self
+        current_form = self.parent_form
         while current_form:
             form_data = {
                 "context": current_form.conversation_area.widget().toPlainText(),
             }
             data.append(form_data)
             current_form = current_form.parent_form
-        return reversed(data)  # Reverse to get parent data first
+        return reversed(data)
 
     def to_dict(self):
         return {
@@ -1202,11 +1202,8 @@ class FormWidget(QGraphicsWidget):
         form = cls(parent, model=data["model"])
         form.setPos(QPointF(data["pos_x"], data["pos_y"]))
 
-        # Use default values if width and height are not in the data
-        default_width = 300  # Set an appropriate default width
-        default_height = 200  # Set an appropriate default height
-        width = data.get("width", default_width)
-        height = data.get("height", default_height)
+        width = data.get("width", 300)
+        height = data.get("height", 200)
         form.resize(width, height)
 
         form.input_box.widget().setPlainText(data["input"])
