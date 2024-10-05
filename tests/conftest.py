@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from PyQt6.QtWidgets import QApplication
 
@@ -18,6 +20,7 @@ def app():
 def main_window(qtbot):
     """Creates an instance of MainWindow and adds it to qtbot."""
     window = MainWindow(auto_load_state=False)
+    window.load_from_file(Path.cwd() / "tests" / "test_example.json")
     window.showMaximized()
     window.show()
     qtbot.addWidget(window)

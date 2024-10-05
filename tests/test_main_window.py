@@ -1,6 +1,5 @@
 import json
 import os
-from pathlib import Path
 
 from PyQt6.QtCore import QEvent
 from PyQt6.QtCore import Qt
@@ -16,15 +15,11 @@ def interact(qtbot):
 
 
 def test_main_window_opens(main_window, qtbot):
-    """Checks if the main window opens with the correct title."""
     assert main_window.windowTitle().startswith("Chat Circuit") is True
     assert main_window.isVisible()
 
 
 def test_create_new_form_via_shortcut(main_window, qtbot):
-    qtbot.waitForWindowShown(main_window)
-    main_window.load_from_file(Path.cwd() / "tests" / "test_example.json")
-
     """Checks if a new form is created when Ctrl+N is pressed."""
     initial_form_count = len(
         [item for item in main_window.scene.items() if isinstance(item, FormWidget)]
