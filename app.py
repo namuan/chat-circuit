@@ -9,6 +9,8 @@ import uuid
 from abc import ABC
 from abc import abstractmethod
 from collections import deque
+from os import linesep
+from pathlib import Path
 
 import keyring
 import mistune
@@ -171,8 +173,6 @@ class CustomFilePicker(QWidget):
             if selected_file not in self.selected_file_paths:
                 self.selected_file_paths.append(selected_file)
                 self.update_file_count()
-                print(f"Selected file: {selected_file}")
-                print(f"All selected files: {self.selected_file_paths}")
 
     def show_file_list(self):
         if self.selected_file_paths:
@@ -1315,6 +1315,17 @@ class FormWidget(QGraphicsWidget):
             if context:
                 message = dict(role="user", content=context)
                 context_data.append(message)
+
+        selected_files = self.picker.get_selected_files()
+        for selected_file in selected_files:
+            try:
+                file_content = Path(selected_file).read_text(encoding="utf-8")
+                file_message = dict(
+                    role="user", content=linesep.join([selected_file, file_content])
+                )
+                context_data.append(file_message)
+            except OSError as e:
+                print(f"Unable to open file {selected_file}: {e}")
 
         current_message = dict(role="user", content=input_text)
         context_data.append(current_message)
