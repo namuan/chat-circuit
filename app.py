@@ -19,6 +19,7 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtCore import QEasingCurve
+from PyQt6.QtCore import QEvent
 from PyQt6.QtCore import QObject
 from PyQt6.QtCore import QPoint
 from PyQt6.QtCore import QPointF
@@ -63,6 +64,8 @@ from PyQt6.QtWidgets import QGraphicsWidget
 from PyQt6.QtWidgets import QHBoxLayout
 from PyQt6.QtWidgets import QLabel
 from PyQt6.QtWidgets import QLineEdit
+from PyQt6.QtWidgets import QListWidget
+from PyQt6.QtWidgets import QListWidgetItem
 from PyQt6.QtWidgets import QMainWindow
 from PyQt6.QtWidgets import QMenu
 from PyQt6.QtWidgets import QMessageBox
@@ -116,6 +119,182 @@ thread_pool = QThreadPool()
 active_workers = 0
 
 
+class CustomFilePicker(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        main_layout = QHBoxLayout()
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        button_style = """
+            background-color: #F0F0F0;
+            text-align: center;
+            border: 1px solid #808080;
+            font-size: 18px;
+        """
+
+        self.selected_file_paths = []
+        self.file_count_button = QPushButton("0")
+        self.file_count_button.setFixedSize(28, 26)
+        self.file_count_button.setStyleSheet(button_style + "border-right: none;")
+        self.file_count_button.clicked.connect(self.show_file_list)
+
+        self.attach_file_button = QPushButton()
+        self.attach_file_button.setIcon(QIcon.fromTheme("mail-attachment"))
+        self.attach_file_button.setStyleSheet(button_style + "border-left: none;")
+        self.attach_file_button.clicked.connect(self.open_file_dialog)
+        self.attach_file_button.setFixedSize(28, 26)
+
+        main_layout.addWidget(self.file_count_button)
+        main_layout.addWidget(self.attach_file_button)
+
+        self.setLayout(main_layout)
+
+    def get_selected_files(self):
+        return self.selected_file_paths
+
+    def set_selected_files(self, files):
+        self.selected_file_paths = files
+        self.update_file_count()
+
+    def update_file_count(self):
+        self.file_count_button.setText(str(len(self.selected_file_paths)))
+
+    def open_file_dialog(self):
+        file_dialog = QFileDialog(None)
+        file_dialog.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        file_dialog.setWindowTitle("Select a File")
+        file_dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        if file_dialog.exec():
+            selected_file = file_dialog.selectedFiles()[0]
+            if selected_file not in self.selected_file_paths:
+                self.selected_file_paths.append(selected_file)
+                self.update_file_count()
+                print(f"Selected file: {selected_file}")
+                print(f"All selected files: {self.selected_file_paths}")
+
+    def show_file_list(self):
+        if self.selected_file_paths:
+            file_list_dialog = QDialog(None)
+            file_list_dialog.setWindowFlags(
+                Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+            )
+
+            dialog_layout = QVBoxLayout(file_list_dialog)
+            dialog_layout.setContentsMargins(0, 0, 0, 0)
+            dialog_layout.setSpacing(0)
+
+            file_list_widget = QListWidget()
+            file_list_widget.setStyleSheet("""
+            QListWidget {
+                border: none;
+                outline: none;
+                background-color: white;
+            }
+            QListWidget::item {
+                border: none;
+                padding: 0;
+                height: 30px;
+            }
+            QListWidget::item:selected {
+                background: transparent;
+            }
+            """)
+
+            for file_path in self.selected_file_paths:
+                file_name = os.path.basename(file_path)
+                file_item_widget = QWidget()
+                file_item_layout = QHBoxLayout(file_item_widget)
+                file_item_layout.setContentsMargins(5, 0, 5, 0)
+                file_item_layout.setSpacing(5)
+
+                remove_file_button = QPushButton("×")
+                remove_file_button.setFixedSize(20, 20)
+                remove_file_button.setStyleSheet("""
+                QPushButton {
+                    border: none;
+                    background-color: transparent;
+                    color: red;
+                    font-weight: bold;
+                    font-size: 18px;
+                }
+                QPushButton:hover {
+                    color: darkred;
+                }
+                """)
+                remove_file_button.clicked.connect(
+                    lambda _, path=file_path: self.remove_file(path, file_list_widget)
+                )
+
+                file_name_label = QLabel(file_name)
+                file_name_label.setStyleSheet("""
+                color: #333;
+                background: transparent;
+                border: none;
+                font-size: 13px;
+                """)
+
+                file_item_layout.addWidget(remove_file_button)
+                file_item_layout.addWidget(file_name_label, 1)
+
+                file_list_item = QListWidgetItem(file_list_widget)
+                file_list_widget.addItem(file_list_item)
+                file_list_widget.setItemWidget(file_list_item, file_item_widget)
+
+            dialog_layout.addWidget(file_list_widget)
+            file_list_dialog.setLayout(dialog_layout)
+
+            item_height = 30  # This should match the height in the CSS
+            num_items = len(self.selected_file_paths)
+            calculated_height = num_items * item_height
+
+            max_height = 300
+            dialog_height = min(calculated_height, max_height)
+
+            # Set the fixed width and calculated height
+            file_list_dialog.setFixedSize(300, dialog_height)
+
+            self.dialog = file_list_dialog
+            self.update_list_position(calculated_height)
+
+            class ClickOutsideFilter(QObject):
+                def __init__(self, dialog):
+                    super().__init__()
+                    self.dialog = dialog
+
+                def eventFilter(self, obj, event):
+                    if event.type() == QEvent.Type.Leave and obj == self.dialog:
+                        if not self.dialog.geometry().contains(QCursor.pos()):
+                            self.dialog.close()
+                            return True
+                    return False
+
+            click_outside_filter = ClickOutsideFilter(file_list_dialog)
+            file_list_dialog.installEventFilter(click_outside_filter)
+
+            file_list_dialog.activateWindow()
+            file_list_dialog.raise_()
+            file_list_dialog.exec()
+
+            file_list_dialog.removeEventFilter(click_outside_filter)
+
+    def remove_file(self, file_path, file_list_widget):
+        if file_path in self.selected_file_paths:
+            index = self.selected_file_paths.index(file_path)
+            del self.selected_file_paths[index]
+            self.update_file_count()
+            file_list_widget.takeItem(index)
+
+    def update_list_position(self, list_height: int):
+        file_count_button_pos = self.file_count_button.mapToGlobal(
+            self.file_count_button.rect().topLeft()
+        )
+        self.dialog.move(
+            file_count_button_pos.x(), file_count_button_pos.y() - list_height
+        )
+
+
 class CommandInvoker:
     def __init__(self):
         self.history = []
@@ -163,7 +342,7 @@ def create_button(icon_path, tooltip, callback):
     return button_widget
 
 
-def add_buttons(form_widget):
+def add_buttons(form_widget, picker):
     bottom_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
 
     # Define button configurations
@@ -182,6 +361,10 @@ def add_buttons(form_widget):
         ),
         (resource_path("resources/delete.svg"), "Delete", form_widget.delete_form),
     ]
+
+    picker_widget = QGraphicsProxyWidget()
+    picker_widget.setWidget(picker)
+    bottom_layout.addItem(picker_widget)
 
     # Create and add buttons
     for icon_path, tooltip, callback in buttons:
@@ -831,7 +1014,9 @@ class FormWidget(QGraphicsWidget):
         self.main_layout.addItem(chat_layout)
 
         # Create bottom buttons layout
-        bottom_layout = add_buttons(self)
+        self.picker = CustomFilePicker()
+        self.picker.setFixedSize(56, 26)
+        bottom_layout = add_buttons(self, self.picker)
 
         # Add bottom layout to main layout
         self.main_layout.addItem(bottom_layout)
@@ -1195,11 +1380,12 @@ class FormWidget(QGraphicsWidget):
             "context": self.markdown_content,
             "children": [child.to_dict() for child in self.child_forms],
             "model": self.model,
+            "selected_files": self.picker.get_selected_files(),
         }
 
     @classmethod
     def from_dict(cls, data, scene, parent=None):
-        form = cls(parent, model=data["model"])
+        form: FormWidget = cls(parent, model=data["model"])
         form.setPos(QPointF(data["pos_x"], data["pos_y"]))
 
         width = data.get("width", 300)
@@ -1212,6 +1398,9 @@ class FormWidget(QGraphicsWidget):
         if "model" in data:
             form.model = data["model"]
             form.header.update_model_name()
+        if "selected_files" in data:
+            form.picker.set_selected_files(data["selected_files"])
+
         scene.addItem(form)
 
         for child_data in data["children"]:
