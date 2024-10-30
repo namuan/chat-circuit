@@ -1230,18 +1230,14 @@ class FormWidget(QGraphicsWidget):
 
     def clone_form(self):
         form_width = self.boundingRect().width()
-        form_height = self.boundingRect().height()
+        min_gap = 100
 
-        min_gap = 20
+        # Generate random offset for more natural spread
+        random_offset_x = random.randint(min_gap, min_gap * 3)
+        random_offset_y = random.randint(min_gap, min_gap * 3)
 
-        # Generate a random offset for a more natural spread
-        random_offset_x = random.randint(min_gap, min_gap * 2)
-        random_offset_y = random.randint(min_gap, min_gap * 2)
-
-        # Determine the new position (bottom right of the parent)
-        clone_pos = self.pos() + QPointF(
-            form_width + random_offset_x, form_height + random_offset_y
-        )
+        # Calculate top right position instead of bottom right
+        clone_pos = self.pos() + QPointF(form_width + random_offset_x, -random_offset_y)
 
         command = CreateFormCommand(self.scene(), self, clone_pos, self.model)
         self.scene().command_invoker.execute(command)
