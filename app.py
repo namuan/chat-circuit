@@ -1044,6 +1044,38 @@ class FormWidget(QGraphicsWidget):
         self.circle_item = HoverCircle(self)
         self.circle_item.setZValue(2)
 
+    def to_markdown(self):
+        """Convert form content to markdown format."""
+        markdown = []
+
+        # Add prompt
+        prompt = self.input_box.widget().toPlainText().strip()
+        if prompt:
+            markdown.append("## ❓")
+            markdown.append(prompt + "\n")
+
+        # Add response
+        response = self.conversation_area.widget().toPlainText().strip()
+        if response:
+            markdown.append("## 🤖")
+            markdown.append(response + "\n")
+
+        # Add model info
+        if self.model:
+            markdown.append(f"*⚙️: {self.model}*\n")
+
+        return "\n".join(markdown)
+
+    def get_markdown_hierarchy(self, level=1):
+        """Get markdown content for this form and all its children."""
+        markdown = [self.to_markdown()]
+
+        # Add children content
+        for child in self.child_forms:
+            markdown.append(child.get_markdown_hierarchy(level + 1))
+
+        return "\n".join(markdown)
+
     def show_context_menu(self, position):
         context_menu = QMenu()
         create_new_form_action = QAction("Explain this ...", self)
@@ -1989,6 +2021,37 @@ class MainWindow(QMainWindow):
         if auto_load_state:
             self.restore_application_state()
 
+    def export_to_markdown(self):
+        """Export all chat content to a markdown file."""
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "Export to Markdown", "", "Markdown Files (*.md)"
+        )
+
+        if not file_name:
+            return
+
+        markdown_content = []
+
+        # Get content from all root forms (forms without parents)
+        for item in self.scene.items():
+            if isinstance(item, FormWidget) and not item.parent_form:
+                markdown_content.append(item.get_markdown_hierarchy())
+
+        # Write to file
+        try:
+            with open(file_name, "w", encoding="utf-8") as f:
+                f.write("\n\n".join(markdown_content))
+
+            QMessageBox.information(
+                self,
+                "Export Successful",
+                f"Chat content has been exported to {file_name}",
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Export Failed", f"Failed to export chat content: {str(e)}"
+            )
+
     def update_scene_rect(self):
         if self.is_updating_scene_rect:
             return
@@ -2032,6 +2095,17 @@ class MainWindow(QMainWindow):
         load_action.triggered.connect(self.load_state)
         file_menu.addAction(load_action)
 
+        file_menu.addSeparator()
+
+        export_markdown_action = QAction("Export to Markdown", self)
+        export_markdown_action.setShortcut(QKeySequence("Ctrl+Shift+M"))
+        export_markdown_action.triggered.connect(self.export_to_markdown)
+        file_menu.addAction(export_markdown_action)
+
+        export_action = QAction("Export to JSON Canvas", self)
+        export_action.triggered.connect(self.export_to_json_canvas)
+        file_menu.addAction(export_action)
+
         # Edit menu
         edit_menu = self.menuBar().addMenu("Edit")
 
@@ -2062,10 +2136,6 @@ class MainWindow(QMainWindow):
         reset_zoom_action.setShortcut(QKeySequence("Ctrl+0"))
         reset_zoom_action.triggered.connect(self.reset_zoom)
         view_menu.addAction(reset_zoom_action)
-
-        export_action = QAction("Export to JSON Canvas", self)
-        export_action.triggered.connect(self.export_to_json_canvas)
-        file_menu.addAction(export_action)
 
         config_menu = self.menuBar().addMenu("Configuration")
 
