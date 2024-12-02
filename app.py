@@ -987,7 +987,6 @@ class FormWidget(QGraphicsWidget):
         self.input_text_edit.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
         )
-        self.input_text_edit.textChanged.connect(self.adjust_input_box_height)
         self.input_box.setWidget(self.input_text_edit)
         self.input_box.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
@@ -1007,6 +1006,8 @@ class FormWidget(QGraphicsWidget):
         self.emoji_proxy = QGraphicsProxyWidget()
         self.emoji_proxy.setWidget(self.emoji_container)
         input_layout.addItem(self.emoji_proxy)
+
+        QTimer.singleShot(0, self.adjust_input_box_height)
 
         chat_layout.addItem(input_layout)
 
@@ -2012,8 +2013,6 @@ class MainWindow(QMainWindow):
         self.zoom_factor = 1.0
         self.create_menu()
 
-        self.scene.itemAdded.connect(self.update_scene_rect)
-        self.scene.itemMoved.connect(self.update_scene_rect)
         self.is_updating_scene_rect = False
 
         self.jina_api_key = self.state_manager.get_jina_api_key()
@@ -2136,6 +2135,13 @@ class MainWindow(QMainWindow):
         reset_zoom_action.setShortcut(QKeySequence("Ctrl+0"))
         reset_zoom_action.triggered.connect(self.reset_zoom)
         view_menu.addAction(reset_zoom_action)
+
+        view_menu.addSeparator()
+
+        fit_scene_action = QAction("Fit Scene", self)
+        fit_scene_action.setShortcut(QKeySequence("Ctrl+R"))
+        fit_scene_action.triggered.connect(self.update_scene_rect)
+        view_menu.addAction(fit_scene_action)
 
         config_menu = self.menuBar().addMenu("Configuration")
 
