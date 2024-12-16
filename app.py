@@ -1046,6 +1046,10 @@ class FormWidget(QGraphicsWidget):
         self.circle_item = HoverCircle(self)
         self.circle_item.setZValue(2)
 
+        self.animation = QPropertyAnimation(self, b"geometry")  # NEW: Create animation
+        self.animation.setDuration(200)
+        self.animation.setEasingCurve(QEasingCurve.Type.OutQuad)
+
     def to_markdown(self):
         """Convert form content to markdown format."""
         markdown = []
@@ -1099,6 +1103,25 @@ class FormWidget(QGraphicsWidget):
             scene.command_invoker.execute(command)
             new_form = command.created_form
             new_form.input_box.widget().setPlainText(f"Explain {selected_text}")
+
+    def expand_form(self):
+        text_edit = self.conversation_area.widget()
+        doc = text_edit.document()
+        text_height = doc.size().height() + 100  # Add some padding
+
+        new_height = max(
+            text_height
+            + self.input_box.size().height()
+            + self.header.size().height()
+            + 50,
+            self.minimumHeight(),
+        )
+
+        self.animation.setStartValue(self.geometry())
+        self.animation.setEndValue(
+            QRectF(self.pos(), QSizeF(self.size().width(), new_height))
+        )
+        self.animation.start()
 
     def create_emoji_label(self):
         emoji_label = QLabel("❓")  # You can change this to any emoji you prefer
@@ -1993,6 +2016,14 @@ class GraphicsScene(QGraphicsScene):
         else:
             super().keyPressEvent(event)
 
+    def apply_expansion_recursively(self, expand=True):
+        for item in self.items():
+            if isinstance(item, FormWidget):
+                self._apply_expansion_to_form(item, expand)
+
+    def _apply_expansion_to_form(self, form, expand):
+        form.expand_form()
+
     def create_new_form(self, position):
         command = CreateFormCommand(self)
         self.command_invoker.execute(command)
@@ -2053,6 +2084,8 @@ class MainWindow(QMainWindow):
             )
 
     def update_scene_rect(self):
+        self.scene.apply_expansion_recursively(True)
+
         if self.is_updating_scene_rect:
             return
         self.is_updating_scene_rect = True
