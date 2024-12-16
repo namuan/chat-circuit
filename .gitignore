@@ -1,9 +1,23 @@
-venv/
-app.json
-models.conf
-crash.log
-uncompressed.py
-build/
-dist/
-.aider*
-.env
+# ignore all root items
+/*
+
+# unignore folders
+!docs/
+!resources/
+!scripts/
+!tests/
+
+# unignore files
+!.gitignore
+!README.md
+!pyproject.toml
+!uv.lock
+!Makefile
+!.pre-commit-config.yaml
+!.editorconfig
+!app.py
+!app.spec
+!models.conf.example
+!requirements.txt
+!requirements-dev.txt
+!LICENSE
