@@ -42,6 +42,7 @@ from PyQt6.QtGui import QCursor
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QImage
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtGui import QPainter
@@ -2105,6 +2106,12 @@ class MainWindow(QMainWindow):
         export_action.triggered.connect(self.export_to_json_canvas)
         file_menu.addAction(export_action)
 
+        # New PNG export action
+        export_png_action = QAction("Export to PNG", self)
+        export_png_action.setShortcut(QKeySequence("Ctrl+Shift+P"))
+        export_png_action.triggered.connect(self.export_to_png)
+        file_menu.addAction(export_png_action)
+
         # Edit menu
         edit_menu = self.menuBar().addMenu("Edit")
 
@@ -2157,6 +2164,36 @@ class MainWindow(QMainWindow):
             self.state_manager.save_jina_api_key(self.jina_api_key)
             QMessageBox.information(
                 self, "Configuration", "Jina API Key saved successfully!"
+            )
+
+    def export_to_png(self):
+        """Export the entire canvas as a high-quality PNG image."""
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "Export to PNG", "", "PNG Files (*.png)"
+        )
+
+        if not file_name:
+            return
+
+        # Calculate the scene bounding rect
+        scene_rect = self.scene.itemsBoundingRect()
+        scene_rect = scene_rect.adjusted(-100, -100, 100, 100)  # Add some padding
+
+        # Render the scene to a QImage
+        image = QImage(scene_rect.size().toSize(), QImage.Format.Format_ARGB32)
+        image.fill(Qt.GlobalColor.white)  # Fill with white background
+        painter = QPainter(image)
+        self.scene.render(painter, QRectF(image.rect()), scene_rect)
+        painter.end()
+
+        # Save the image
+        if image.save(file_name, "PNG", 100):
+            QMessageBox.information(
+                self, "Export Successful", f"Canvas has been exported to {file_name}"
+            )
+        else:
+            QMessageBox.critical(
+                self, "Export Failed", "Failed to export canvas to PNG."
             )
 
     def export_to_json_canvas(self):
