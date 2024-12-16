@@ -5,3 +5,5 @@ crash.log
 uncompressed.py
 build/
 dist/
+.aider*
+.env
