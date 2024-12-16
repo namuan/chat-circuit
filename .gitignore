@@ -21,3 +21,5 @@
 !requirements.txt
 !requirements-dev.txt
 !LICENSE
+
+__pycache__
