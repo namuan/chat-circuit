@@ -130,7 +130,7 @@ class DuckDuckGo:
     def search(self, query: str) -> str:
         results = self.ddgs.text(query, max_results=10)
         processed_results = [
-            f"**{result['title']}**\n{result['body']}\n\n{result['href']}"
+            f"**{result['title']}**\n\n{result['body']}\n\n{result['href']}"
             for result in results
         ]
         return "### Search Results\n\n" + "\n\n".join(processed_results)
