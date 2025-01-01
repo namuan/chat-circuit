@@ -78,6 +78,7 @@ from PyQt6.QtWidgets import QPushButton
 from PyQt6.QtWidgets import QRubberBand
 from PyQt6.QtWidgets import QScrollBar
 from PyQt6.QtWidgets import QSizePolicy
+from PyQt6.QtWidgets import QTextBrowser
 from PyQt6.QtWidgets import QTextEdit
 from PyQt6.QtWidgets import QVBoxLayout
 from PyQt6.QtWidgets import QWidget
@@ -130,7 +131,7 @@ class DuckDuckGo:
     def search(self, query: str) -> str:
         results = self.ddgs.text(query, max_results=10)
         processed_results = [
-            f"**{result['title']}**\n\n{result['body']}\n\n{result['href']}"
+            f"**[{result['title']}]({result['href']})**\n\n{result['body']}\n\n{result['href']}"
             for result in results
         ]
         return "### Search Results\n\n" + "\n\n".join(processed_results)
@@ -987,19 +988,30 @@ class FormWidget(QGraphicsWidget):
         self.markdown_content = ""
         self.custom_font = QFont("Fantasque Sans Mono", 18)
         self.conversation_area = QGraphicsProxyWidget()
-        conversation_widget = QTextEdit()
+        conversation_widget = QTextBrowser()
         conversation_widget.setReadOnly(True)
         conversation_widget.setAcceptRichText(True)
         conversation_widget.setStyleSheet(
             f"""
-            QTextEdit {{
+            QTextBrowser {{
                 background-color: white;
                 border: 1px solid #ccc;
                 font-family: {self.custom_font.family()};
                 font-size: {self.custom_font.pointSize()}pt;
             }}
+            QTextBrowser a {{
+                color: #0066cc;
+                text-decoration: none;
+            }}
+            QTextBrowser a:hover {{
+                text-decoration: underline;
+                cursor: pointer;
+            }}
             """
         )
+        conversation_widget.setOpenExternalLinks(False)
+        conversation_widget.setOpenLinks(False)
+        conversation_widget.anchorClicked.connect(self.handle_link_click)
         self.conversation_area.setWidget(conversation_widget)
         chat_layout.addItem(self.conversation_area)
         self.conversation_area.widget().setContextMenuPolicy(
@@ -1534,6 +1546,20 @@ class FormWidget(QGraphicsWidget):
             child.link_line = link_line
 
         return form
+
+    def setup_conversation_widget(self, widget):
+        """Configure the conversation widget with link handling and interaction flags"""
+        widget.setOpenExternalLinks(False)
+        widget.anchorClicked.connect(self.handle_link_click)
+        widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        widget.customContextMenuRequested.connect(self.show_context_menu)
+
+    def handle_link_click(self, url):
+        """Handle clicks on links by opening them in the default browser"""
+        import webbrowser
+
+        webbrowser.open(url.toString())
 
 
 class JsonCanvasExporter:
