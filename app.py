@@ -2185,7 +2185,7 @@ class MainWindow(QMainWindow):
             items_rect = items_rect.united(item.sceneBoundingRect())
 
         # Add some margin
-        margin = 200
+        margin = 1000
         new_rect = items_rect.adjusted(-margin, -margin, margin, margin)
 
         # Update the scene rect
