@@ -1371,19 +1371,14 @@ class FormWidget(QGraphicsWidget):
         self.all_forms()
         self.process_next_form()
 
-    def handle_search_response(self, search_results):
-        self.update_answer(search_results)
-
     def submit_search(self):
         input_text = self.input_box.widget().toPlainText().strip()
         if not input_text:
             return
 
+        self.highlight_hierarchy()
+        self.start_processing()
         self.setup_search_worker(input_text, update_handler=self.handle_update)
-        # TODO: When Search Results are returned
-        # TODO: Triggered LLM summarization in Background
-        # TODO: Get LLM response
-        # TODO: Display LLM response in the text box
 
     def submit_form(self):
         input_text = self.input_box.widget().toPlainText().strip()
@@ -1412,8 +1407,8 @@ class FormWidget(QGraphicsWidget):
         self.start_processing()
 
     def handle_jina_reader_content(self, content):
-        self.stop_processing()
-        self.update_answer(content)
+        context_data = [dict(role="user", content=content)]
+        self.setup_llm_worker(context_data, update_handler=self.handle_update)
 
     def process_llm_request(self, input_text):
         form_data = self.gather_form_data()
@@ -1471,6 +1466,7 @@ class FormWidget(QGraphicsWidget):
         self.model = new_model
 
     def handle_update(self, text):
+        self.stop_processing()
         self.update_answer(text)
 
     def handle_finished(self):
