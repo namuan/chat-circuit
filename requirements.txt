@@ -3,3 +3,4 @@ mistune
 litellm
 keyring
 requests
+duckduckgo_search

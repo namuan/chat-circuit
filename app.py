@@ -15,6 +15,7 @@ from pathlib import Path
 import keyring
 import mistune
 import requests
+from duckduckgo_search import DDGS
 from litellm import completion
 from PyQt6.QtCore import (
     pyqtProperty,
@@ -120,6 +121,18 @@ DEFAULT_LLM_MODEL = LLM_MODELS[0]
 
 thread_pool = QThreadPool()
 active_workers = 0
+
+
+class DuckDuckGo:
+    ddgs: DDGS()
+
+    def search(self, query: str) -> str:
+        results = self.ddgs.text(query, max_results=10)
+        postprocessed_results = [
+            f"[{result['title']}]({result['href']})\n{result['body']}"
+            for result in results
+        ]
+        return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
 
 
 class CustomFilePicker(QWidget):
@@ -998,10 +1011,17 @@ class FormWidget(QGraphicsWidget):
 
         input_layout.addItem(self.input_box)
 
-        # Create and add emoji label
-        self.emoji_label = self.create_emoji_label()
+        # Create labels
+        self.web_emoji_label = self.create_emoji_label(
+            emoji="🌐", click_handler=self.web_emoji_label_clicked
+        )
+        self.emoji_label = self.create_emoji_label(
+            emoji="❓", click_handler=self.emoji_label_clicked
+        )
         self.emoji_container = QWidget()
-        emoji_container_layout = QVBoxLayout(self.emoji_container)
+        emoji_container_layout = QHBoxLayout(self.emoji_container)
+        emoji_container_layout.setSpacing(2)
+        emoji_container_layout.addWidget(self.web_emoji_label)
         emoji_container_layout.addWidget(self.emoji_label)
         emoji_container_layout.setContentsMargins(0, 0, 0, 0)
         self.emoji_proxy = QGraphicsProxyWidget()
@@ -1123,29 +1143,32 @@ class FormWidget(QGraphicsWidget):
         )
         self.animation.start()
 
-    def create_emoji_label(self):
-        emoji_label = QLabel("❓")  # You can change this to any emoji you prefer
+    def create_emoji_label(
+        self, emoji, click_handler, font_size=14, hover_color="lightgray"
+    ):
+        emoji_label = QLabel(emoji)
         emoji_label.setStyleSheet(
-            """
-            QLabel {
-                font-size: 24px;
-                background-color: lightgray;
-            }
+            f"""
+            QLabel {{
+                font-size: {font_size}px;
+            }}
+            QLabel:hover {{
+                background-color: {hover_color};
+            }}
         """
         )
         emoji_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        emoji_label.setSizePolicy(
-            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
-        )
-        emoji_label.setCursor(
-            Qt.CursorShape.PointingHandCursor
-        )  # Change cursor on hover
-        emoji_label.mousePressEvent = self.emoji_label_clicked  # Connect click event
+        emoji_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        emoji_label.mousePressEvent = click_handler
         return emoji_label
 
     def emoji_label_clicked(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.submit_form()
+
+    def web_emoji_label_clicked(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.submit_search()
 
     def resize_widget(self, new_size: QPointF):
         new_width = max(new_size.x(), self.minimumWidth())
@@ -1254,15 +1277,12 @@ class FormWidget(QGraphicsWidget):
         )
         context_data.append(dict(role="user", content=prompt))
 
-        # Create a new worker to handle the LLM request
-        self.llm_worker = LlmWorker(self.model, self.system_message, context_data)
-        self.llm_worker.signals.update.connect(self.handle_follow_up_questions)
-        self.llm_worker.signals.finished.connect(self.handle_finished)
-        self.llm_worker.signals.error.connect(self.handle_error)
-
         self.highlight_hierarchy()
-        thread_pool.start(self.llm_worker)
         self.start_processing()
+
+        self.setup_llm_worker(
+            context_data, update_handler=self.handle_follow_up_questions
+        )
 
     def handle_follow_up_questions(self, text):
         try:
@@ -1330,6 +1350,15 @@ class FormWidget(QGraphicsWidget):
         self.all_forms()
         self.process_next_form()
 
+    def submit_search(self):
+        # TODO: Run Search in Background
+        # When Search Results are returned
+        # Triggered LLM summarization in Background
+        # Get LLM response
+        # Display LLM response in the text box
+
+        print("Searching Web")
+
     def submit_form(self):
         input_text = self.input_box.widget().toPlainText().strip()
         if not input_text:
@@ -1383,14 +1412,16 @@ class FormWidget(QGraphicsWidget):
         current_message = dict(role="user", content=input_text)
         context_data.append(current_message)
 
-        self.llm_worker = LlmWorker(self.model, self.system_message, context_data)
-        self.llm_worker.signals.update.connect(self.handle_update)
+        self.highlight_hierarchy()
+        self.start_processing()
+        self.setup_llm_worker(context_data, update_handler=self.handle_update)
+
+    def setup_llm_worker(self, context, update_handler):
+        self.llm_worker = LlmWorker(self.model, self.system_message, context)
+        self.llm_worker.signals.update.connect(update_handler)
         self.llm_worker.signals.finished.connect(self.handle_finished)
         self.llm_worker.signals.error.connect(self.handle_error)
-
-        self.highlight_hierarchy()
         thread_pool.start(self.llm_worker)
-        self.start_processing()
 
     def start_processing(self):
         global active_workers
