@@ -124,15 +124,16 @@ active_workers = 0
 
 
 class DuckDuckGo:
-    ddgs: DDGS()
+    def __init__(self):
+        self.ddgs = DDGS()
 
     def search(self, query: str) -> str:
         results = self.ddgs.text(query, max_results=10)
-        postprocessed_results = [
-            f"[{result['title']}]({result['href']})\n{result['body']}"
+        processed_results = [
+            f"**{result['title']}**\n{result['body']}\n\n{result['href']}"
             for result in results
         ]
-        return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+        return "### Search Results\n\n" + "\n\n".join(processed_results)
 
 
 class CustomFilePicker(QWidget):
@@ -851,6 +852,26 @@ class LlmWorker(QRunnable):
             self.signals.notify_child.emit()
 
 
+class SearchWorkerSignals(QObject):
+    result = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+
+class SearchWorker(QRunnable):
+    def __init__(self, query):
+        super().__init__()
+        self.search_engine = DuckDuckGo()
+        self.query = query
+        self.signals = SearchWorkerSignals()
+
+    def run(self):
+        try:
+            search_results = self.search_engine.search(self.query)
+            self.signals.result.emit(search_results)
+        except Exception as e:
+            self.signals.error.emit(str(e))
+
+
 class JinaReaderWorkerSignals(QObject):
     result = pyqtSignal(str)
     error = pyqtSignal(str)
@@ -1350,14 +1371,19 @@ class FormWidget(QGraphicsWidget):
         self.all_forms()
         self.process_next_form()
 
-    def submit_search(self):
-        # TODO: Run Search in Background
-        # When Search Results are returned
-        # Triggered LLM summarization in Background
-        # Get LLM response
-        # Display LLM response in the text box
+    def handle_search_response(self, search_results):
+        self.update_answer(search_results)
 
-        print("Searching Web")
+    def submit_search(self):
+        input_text = self.input_box.widget().toPlainText().strip()
+        if not input_text:
+            return
+
+        self.setup_search_worker(input_text, update_handler=self.handle_update)
+        # TODO: When Search Results are returned
+        # TODO: Triggered LLM summarization in Background
+        # TODO: Get LLM response
+        # TODO: Display LLM response in the text box
 
     def submit_form(self):
         input_text = self.input_box.widget().toPlainText().strip()
@@ -1422,6 +1448,12 @@ class FormWidget(QGraphicsWidget):
         self.llm_worker.signals.finished.connect(self.handle_finished)
         self.llm_worker.signals.error.connect(self.handle_error)
         thread_pool.start(self.llm_worker)
+
+    def setup_search_worker(self, search_query, update_handler):
+        self.search_worker = SearchWorker(search_query)
+        self.search_worker.signals.result.connect(update_handler)
+        self.search_worker.signals.error.connect(self.handle_error)
+        thread_pool.start(self.search_worker)
 
     def start_processing(self):
         global active_workers
