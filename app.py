@@ -1419,7 +1419,11 @@ class FormWidget(QGraphicsWidget):
         self.start_processing()
 
     def handle_jina_reader_content(self, content):
-        context_data = [dict(role="user", content=content)]
+        context_with_prompt = f"""
+        Summarize the following content:
+        {content}
+        """
+        context_data = [dict(role="user", content=context_with_prompt)]
         self.setup_llm_worker(context_data, update_handler=self.handle_update)
 
     def process_llm_request(self, input_text):
