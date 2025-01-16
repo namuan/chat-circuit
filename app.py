@@ -888,7 +888,10 @@ class JinaReaderWorker(QRunnable):
     def run(self):
         try:
             jina_url = f"https://r.jina.ai/{self.url}"
-            headers = {"Authorization": f"Bearer {self.jina_api_key}"}
+            headers = {
+                "Authorization": f"Bearer {self.jina_api_key}",
+                "x-engine": "readerlm-v2",
+            }
             response = requests.get(jina_url, headers=headers)
             response.raise_for_status()
 
