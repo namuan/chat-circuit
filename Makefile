@@ -7,11 +7,16 @@ install: ## Install the virtual environment and install the pre-commit hooks
 	@uv sync
 	@uv run pre-commit install
 
+start-work: ## Start working on a new feature
+	@echo "🚀 Starting work on a new feature"
+	@mob start -i -b "$(FEATURE)"
+
 check: ## Run code quality tools.
 	@echo "🚀 Checking lock file consistency with 'pyproject.toml'"
 	@uv lock --locked
 	@echo "🚀 Linting code: Running pre-commit"
 	@uv run pre-commit run -a
+	@mob next
 
 check-tool: ## Manually run a single pre-commit hook
 	@echo "🚀 Running pre-commit hook: $(TOOL)"
@@ -53,7 +58,6 @@ setup: ## One command setup
 	@make install-macosx
 	@echo "Installation completed"
 
-.PHONY: help
 help:
 	@uv run python -c "import re; \
 	[[print(f'\033[36m{m[0]:<20}\033[0m {m[1]}') for m in re.findall(r'^([a-zA-Z_-]+):.*?## (.*)$$', open(makefile).read(), re.M)] for makefile in ('$(MAKEFILE_LIST)').strip().split()]"

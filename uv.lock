@@ -298,6 +298,7 @@ dependencies = [
     { name = "litellm" },
     { name = "mistune" },
     { name = "pyqt6" },
+    { name = "pyqt6-qt6" },
     { name = "requests" },
 ]
 
@@ -320,6 +321,7 @@ requires-dist = [
     { name = "litellm" },
     { name = "mistune" },
     { name = "pyqt6" },
+    { name = "pyqt6-qt6", specifier = ">=6.9.2" },
     { name = "requests" },
 ]
 

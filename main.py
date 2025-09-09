@@ -1,6 +1,10 @@
 import faulthandler
 import json
+import logging
+import logging.handlers
 import math
+import os
+import platform
 import random
 import re
 import sys
@@ -47,10 +51,12 @@ from PyQt6.QtGui import (
     QKeySequence,
     QPainter,
     QPen,
+    QPixmap,
     QPolygonF,
     QTextDocument,
     QTransform,
 )
+from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -85,9 +91,133 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+
+# Logging Configuration
+class ChatCircuitLogger:
+    """Centralized logging configuration for ChatCircuit application."""
+
+    def __init__(self, app_name: str = "ChatCircuit"):
+        self.app_name = app_name
+        self.log_dir = self._get_log_directory()
+        self.logger = None
+        self._setup_logging()
+
+    def _get_log_directory(self) -> Path:
+        """Get OS-specific log directory."""
+        system = platform.system().lower()
+
+        if system == "darwin":  # macOS
+            log_dir = Path.home() / "Library" / "Logs" / self.app_name
+        elif system == "windows":
+            appdata = os.getenv("APPDATA")
+            if appdata:
+                log_dir = Path(appdata) / self.app_name / "logs"
+            else:
+                log_dir = Path.home() / "AppData" / "Roaming" / self.app_name / "logs"
+        else:  # Linux and other Unix-like systems
+            log_dir = Path.home() / ".local" / "share" / self.app_name / "logs"
+
+        # Create directory if it doesn't exist
+        log_dir.mkdir(parents=True, exist_ok=True)
+        return log_dir
+
+    def _setup_logging(self) -> None:
+        """Set up logging configuration with rotating file handlers."""
+        # Create main logger
+        self.logger = logging.getLogger(self.app_name)
+        self.logger.setLevel(logging.DEBUG)
+
+        # Prevent duplicate handlers if logger already configured
+        if self.logger.handlers:
+            return
+
+        # Create formatters
+        detailed_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(funcName)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+
+        simple_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S")
+
+        # File handler for all logs (rotating)
+        main_log_file = self.log_dir / "chatcircuit.log"
+        file_handler = logging.handlers.RotatingFileHandler(
+            main_log_file,
+            maxBytes=10 * 1024 * 1024,  # 10MB
+            backupCount=5,
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(detailed_formatter)
+
+        # Error-only file handler
+        error_log_file = self.log_dir / "chatcircuit_errors.log"
+        error_handler = logging.handlers.RotatingFileHandler(
+            error_log_file,
+            maxBytes=5 * 1024 * 1024,  # 5MB
+            backupCount=3,
+        )
+        error_handler.setLevel(logging.ERROR)
+        error_handler.setFormatter(detailed_formatter)
+
+        # Console handler for development
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(simple_formatter)
+
+        # Add handlers to logger
+        self.logger.addHandler(file_handler)
+        self.logger.addHandler(error_handler)
+        self.logger.addHandler(console_handler)
+
+        # Log initial setup
+        self.logger.info("Logging initialized for %s", self.app_name)
+        self.logger.info("Log directory: %s", self.log_dir)
+        self.logger.info("Platform: %s %s", platform.system(), platform.release())
+
+    def get_logger(self, name: str | None = None) -> logging.Logger:
+        """Get a logger instance."""
+        if name:
+            return logging.getLogger(f"{self.app_name}.{name}")
+        return self.logger
+
+    def get_log_directory(self) -> Path:
+        """Get the log directory path."""
+        return self.log_dir
+
+
+# Global logger instance
+_chat_circuit_logger = None
+
+
+def setup_logging(app_name: str = "ChatCircuit") -> ChatCircuitLogger:
+    """Set up global logging configuration."""
+    global _chat_circuit_logger
+    if _chat_circuit_logger is None:
+        _chat_circuit_logger = ChatCircuitLogger(app_name)
+    return _chat_circuit_logger
+
+
+def get_logger(name: str | None = None) -> logging.Logger:
+    """Get a logger instance."""
+    if _chat_circuit_logger is None:
+        setup_logging()
+    return _chat_circuit_logger.get_logger(name)
+
+
+def get_log_directory() -> Path:
+    """Get the log directory path."""
+    if _chat_circuit_logger is None:
+        setup_logging()
+    return _chat_circuit_logger.get_log_directory()
+
+
 faulthandler.enable()
 with Path("crash.log").open("w") as f:
     faulthandler.dump_traceback(f)
+
+# Initialize logging system
+setup_logging("ChatCircuit")
+logger = get_logger("main")
 
 APPLICATION_TITLE = "Chat Circuit"
 
@@ -96,7 +226,7 @@ def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
+        base_path = Path(sys._MEIPASS)
     except Exception:
         base_path = Path().resolve()
 
@@ -104,13 +234,15 @@ def resource_path(relative_path):
 
 
 def load_models_from_config(config_file="models.conf"):
+    config_logger = get_logger("config")
     config_path = Path(__file__).parent / config_file
 
     try:
         with config_path.open() as f:
             models = [line.strip() for line in f if line.strip()]
+        config_logger.info("Loaded %s models from %s", len(models), config_file)
     except FileNotFoundError:
-        print(f"Config file {config_file} not found. Using default models.")
+        config_logger.warning("Config file %s not found. Using default models.", config_file)
         models = [
             "llama3:latest",
             "mistral:latest",
@@ -331,8 +463,103 @@ class CommandInvoker:
             self.history.append(command)
 
 
+def _validate_svg_file(file_path):
+    """Validate that the file exists and appears to be a valid SVG."""
+    path_obj = Path(file_path)
+    if not path_obj.exists():
+        logger.warning("SVG icon file not found: %s", file_path)
+        return False
+
+    # Check file size
+    file_size = path_obj.stat().st_size
+    logger.debug("SVG file size: %s bytes", file_size)
+
+    if file_size == 0:
+        logger.warning("SVG icon file is empty: %s", file_path)
+        return False
+
+    # Try to validate SVG content
+    try:
+        with Path(file_path).open(encoding="utf-8") as f:
+            content = f.read()
+            if not content.strip().startswith("<svg"):
+                logger.warning("File does not appear to be a valid SVG: %s", file_path)
+                return False
+    except Exception as read_error:
+        logger.warning("Could not read SVG file %s: %s", file_path, read_error)
+        return False
+
+    return True
+
+
+def _create_icon_with_renderer(file_path):
+    """Create a QIcon using QSvgRenderer."""
+    try:
+        renderer = QSvgRenderer(str(file_path))
+        if renderer.isValid():
+            # Create a pixmap from the SVG
+            size = renderer.defaultSize()
+            if size.width() > 0 and size.height() > 0:
+                pixmap = QPixmap(size)
+                pixmap.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(pixmap)
+                renderer.render(painter)
+                painter.end()
+
+                icon = QIcon(pixmap)
+                if not icon.isNull():
+                    logger.debug("Successfully created SVG icon using QSvgRenderer: %s", file_path)
+                    return icon
+                logger.warning("QIcon created from pixmap is null: %s", file_path)
+            else:
+                logger.warning("SVG has invalid size %dx%d: %s", size.width(), size.height(), file_path)
+        else:
+            logger.warning("QSvgRenderer reports invalid SVG: %s", file_path)
+    except Exception as svg_error:
+        logger.warning("QSvgRenderer failed for %s: %s", file_path, svg_error)
+
+    return None
+
+
+def _create_icon_directly(file_path):
+    """Create a QIcon by direct loading."""
+    try:
+        icon = QIcon(str(file_path))
+        if not icon.isNull():
+            logger.debug("Successfully created icon using direct QIcon: %s", file_path)
+            return icon
+        logger.warning("Direct QIcon loading failed (icon is null): %s", file_path)
+    except Exception as icon_error:
+        logger.warning("Direct QIcon loading failed with exception: %s: %s", file_path, icon_error)
+
+    return None
+
+
 def create_svg_icon(file_path):
-    return QIcon(file_path)
+    """Create a QIcon from an SVG file path with enhanced error handling."""
+    logger.debug("Attempting to create SVG icon from: %s", file_path)
+
+    try:
+        # First validate the file
+        if not _validate_svg_file(file_path):
+            return QIcon()
+
+        # Try QSvgRenderer first for better SVG support
+        icon = _create_icon_with_renderer(file_path)
+        if icon:
+            return icon
+
+        # Fallback to direct QIcon loading
+        icon = _create_icon_directly(file_path)
+        if icon:
+            return icon
+
+    except Exception:
+        logger.exception("Unexpected error creating SVG icon from %s")
+
+    # Return an empty icon as fallback
+    logger.warning("All SVG icon loading methods failed for: %s", file_path)
+    return QIcon()
 
 
 def create_button(icon_path, tooltip, callback):
@@ -815,13 +1042,19 @@ class LlmWorker(QRunnable):
         self.messages = messages
         self.system_message = system_message or "You are a helpful assistant."
         self.signals = LlmWorkerSignals()
+        self.logger = get_logger("llm_worker")
 
     def run(self):
+        self.logger.info("Starting LLM worker execution with model: %s", self.model)
+        self.logger.debug("Processing %s messages", len(self.messages))
+
         try:
             formatted_messages = []
             if self.system_message:
                 formatted_messages.append({"role": "system", "content": self.system_message})
             formatted_messages.extend(self.messages)
+
+            self.logger.debug("Formatted %s messages for LLM", len(formatted_messages))
 
             response = completion(
                 model=f"{self.model}",
@@ -830,12 +1063,15 @@ class LlmWorker(QRunnable):
             )
 
             content = response.choices[0].message.content
+            self.logger.info("LLM response received: %s characters", len(content))
             self.signals.update.emit(content)
             self.signals.finished.emit()
 
         except Exception as e:
+            self.logger.exception("LLM worker error with model %s")
             self.signals.error.emit(str(e))
         finally:
+            self.logger.debug("LLM worker execution completed")
             self.signals.notify_child.emit()
 
 
@@ -850,13 +1086,23 @@ class SearchWorker(QRunnable):
         self.search_engine = DuckDuckGo()
         self.query = query
         self.signals = SearchWorkerSignals()
+        self.logger = get_logger("search_worker")
 
     def run(self):
+        self.logger.info(
+            "Starting search worker execution for query: '%s%s'", self.query[:50], "..." if len(self.query) > 50 else ""
+        )
+        self.logger.debug("Full search query: %s", self.query)
+
         try:
             search_results = self.search_engine.search(self.query)
+            self.logger.info("Search completed successfully: %s characters returned", len(search_results))
             self.signals.result.emit(search_results)
         except Exception as e:
+            self.logger.exception("Search worker error for query '%s...'")
             self.signals.error.emit(str(e))
+        finally:
+            self.logger.debug("Search worker execution completed")
 
 
 class JinaReaderWorkerSignals(QObject):
@@ -944,6 +1190,9 @@ class FormWidget(QGraphicsWidget):
         # LLM
         self.model = model
         self.system_message = "You are a helpful assistant."
+
+        # Initialize logger for this form
+        self.logger = get_logger("form")
 
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -1120,15 +1369,28 @@ class FormWidget(QGraphicsWidget):
     def create_new_form_from_selection(self):
         selected_text = self.conversation_area.widget().textCursor().selectedText()
         if selected_text:
-            # Get the scene and create a new position for the new form
-            scene = self.scene()
-            new_pos = self.pos() + QPointF(500, 200)  # Offset from current form
+            self.logger.info(
+                "Creating new form from selection: '%s%s'", selected_text[:50], "..." if len(selected_text) > 50 else ""
+            )
+            self.logger.debug("Selected text length: %s characters", len(selected_text))
 
-            # Create a new form using the existing CreateFormCommand
-            command = CreateFormCommand(scene, self, new_pos, self.model)
-            scene.command_invoker.execute(command)
-            new_form = command.created_form
-            new_form.input_box.widget().setPlainText(f"Explain {selected_text}")
+            try:
+                # Get the scene and create a new position for the new form
+                scene = self.scene()
+                new_pos = self.pos() + QPointF(500, 200)  # Offset from current form
+                self.logger.debug("New form position: (%.1f, %.1f)", new_pos.x(), new_pos.y())
+
+                # Create a new form using the existing CreateFormCommand
+                command = CreateFormCommand(scene, self, new_pos, self.model)
+                scene.command_invoker.execute(command)
+                new_form = command.created_form
+                new_form.input_box.widget().setPlainText(f"Explain {selected_text}")
+                self.logger.info("New form created successfully from selection")
+            except Exception:
+                self.logger.exception("Failed to create form from selection: %s")
+                raise
+        else:
+            self.logger.debug("No text selected for form creation")
 
     def expand_form(self):
         text_edit = self.conversation_area.widget()
@@ -1293,26 +1555,46 @@ class FormWidget(QGraphicsWidget):
             self.handle_error(f"Error parsing follow-up questions: {e!s}")
 
     def clone_branch(self):
-        command = CloneBranchCommand(self.scene(), self)
-        self.scene().command_invoker.execute(command)
+        self.logger.info("Initiating branch cloning operation")
+        try:
+            command = CloneBranchCommand(self.scene(), self)
+            self.scene().command_invoker.execute(command)
+            self.logger.info("Branch cloned successfully")
+        except Exception:
+            self.logger.exception("Failed to clone branch: %s")
+            raise
 
     def clone_form(self):
-        form_width = self.boundingRect().width()
-        min_gap = 100
+        self.logger.info("Initiating form cloning operation")
+        try:
+            form_width = self.boundingRect().width()
+            min_gap = 100
 
-        # Generate random offset for more natural spread
-        random_offset_x = random.randint(min_gap, min_gap * 3)
-        random_offset_y = random.randint(min_gap, min_gap * 3)
+            # Generate random offset for more natural spread
+            random_offset_x = random.randint(min_gap, min_gap * 3)
+            random_offset_y = random.randint(min_gap, min_gap * 3)
 
-        # Calculate top right position instead of bottom right
-        clone_pos = self.pos() + QPointF(form_width + random_offset_x, -random_offset_y)
+            self.logger.debug("Clone position offset: x=%s, y=%s", random_offset_x, random_offset_y)
 
-        command = CreateFormCommand(self.scene(), self, clone_pos, self.model)
-        self.scene().command_invoker.execute(command)
+            # Calculate top right position instead of bottom right
+            clone_pos = self.pos() + QPointF(form_width + random_offset_x, -random_offset_y)
+
+            command = CreateFormCommand(self.scene(), self, clone_pos, self.model)
+            self.scene().command_invoker.execute(command)
+            self.logger.info("Form cloned successfully at position (%.1f, %.1f)", clone_pos.x(), clone_pos.y())
+        except Exception:
+            self.logger.exception("Failed to clone form: %s")
+            raise
 
     def delete_form(self):
-        command = DeleteFormCommand(self)
-        self.scene().command_invoker.execute(command)
+        self.logger.info("Initiating form deletion operation")
+        try:
+            command = DeleteFormCommand(self)
+            self.scene().command_invoker.execute(command)
+            self.logger.info("Form deleted successfully")
+        except Exception:
+            self.logger.exception("Failed to delete form: %s")
+            raise
 
     def update_link_lines(self):
         if self.link_line:
@@ -1331,11 +1613,12 @@ class FormWidget(QGraphicsWidget):
     def process_next_form(self):
         try:
             form = self.form_chain.popleft()
-            print(f"❓{form.input_box.widget().toPlainText().strip()}")
+            question = form.input_box.widget().toPlainText().strip()
+            self.logger.info("Processing form with question: %s", question)
             form.submit_form()
             form.llm_worker.signals.notify_child.connect(self.process_next_form)
         except IndexError:
-            print("Processed all forms")
+            self.logger.info("Processed all forms in chain")
 
     def re_run_all(self):
         self.all_forms()
@@ -1344,7 +1627,12 @@ class FormWidget(QGraphicsWidget):
     def submit_search(self):
         input_text = self.input_box.widget().toPlainText().strip()
         if not input_text:
+            self.logger.debug("Search submission cancelled: empty input text")
             return
+
+        query_display = input_text[:100] + ("..." if len(input_text) > 100 else "")
+        self.logger.info("Initiating search operation for query: '%s'", query_display)
+        self.logger.debug("Search query length: %s characters", len(input_text))
 
         self.highlight_hierarchy()
         self.start_processing()
@@ -1383,6 +1671,9 @@ class FormWidget(QGraphicsWidget):
         self.setup_llm_worker(context_data, update_handler=self.handle_update)
 
     def process_llm_request(self, input_text):
+        self.logger.info("Processing LLM request with model: %s", self.model)
+        self.logger.debug("Input text length: %d characters", len(input_text))
+
         form_data = self.gather_form_data()
         context_data = []
         for data in form_data:
@@ -1391,43 +1682,81 @@ class FormWidget(QGraphicsWidget):
                 message = {"role": "user", "content": context}
                 context_data.append(message)
 
+        self.logger.debug("Gathered %s context messages from form hierarchy", len(context_data))
+
         selected_files = self.picker.get_selected_files()
+        self.logger.debug("Processing %s selected files", len(selected_files))
         for selected_file in selected_files:
             try:
                 file_content = Path(selected_file).read_text(encoding="utf-8")
                 file_message = {"role": "user", "content": linesep.join([selected_file, file_content])}
                 context_data.append(file_message)
-            except OSError as e:
-                print(f"Unable to open file {selected_file}: {e}")
+                self.logger.debug("Successfully loaded file: %s (%d chars)", selected_file, len(file_content))
+            except OSError:
+                self.logger.exception("Unable to open file %s")
 
         current_message = {"role": "user", "content": input_text}
         context_data.append(current_message)
+
+        self.logger.info("Total context messages prepared: %s", len(context_data))
 
         self.highlight_hierarchy()
         self.start_processing()
         self.setup_llm_worker(context_data, update_handler=self.handle_update)
 
     def setup_llm_worker(self, context, update_handler):
-        self.llm_worker = LlmWorker(self.model, self.system_message, context)
-        self.llm_worker.signals.update.connect(update_handler)
-        self.llm_worker.signals.finished.connect(self.handle_finished)
-        self.llm_worker.signals.error.connect(self.handle_error)
-        thread_pool.start(self.llm_worker)
+        self.logger.info("Setting up LLM worker with model: %s", self.model)
+        self.logger.debug(
+            f"System message: {self.system_message[:100]}..."
+            if len(self.system_message) > 100
+            else f"System message: {self.system_message}"
+        )
+        self.logger.debug("Context contains %s messages", len(context))
+
+        try:
+            self.llm_worker = LlmWorker(self.model, self.system_message, context)
+            self.llm_worker.signals.update.connect(update_handler)
+            self.llm_worker.signals.finished.connect(self.handle_finished)
+            self.llm_worker.signals.error.connect(self.handle_error)
+
+            global active_workers
+            active_workers += 1
+            self.logger.info("Starting LLM worker (active workers: %s)", active_workers)
+            thread_pool.start(self.llm_worker)
+            self.logger.debug("LLM worker successfully added to thread pool")
+        except Exception:
+            self.logger.exception("Failed to setup LLM worker: %s")
+            raise
 
     def setup_search_worker(self, search_query, update_handler):
-        self.search_worker = SearchWorker(search_query)
-        self.search_worker.signals.result.connect(update_handler)
-        self.search_worker.signals.error.connect(self.handle_error)
-        thread_pool.start(self.search_worker)
+        query_display = search_query[:50] + ("..." if len(search_query) > 50 else "")
+        self.logger.info("Setting up search worker for query: '%s'", query_display)
+        self.logger.debug("Search query: %s", search_query)
+
+        try:
+            self.search_worker = SearchWorker(search_query)
+            self.search_worker.signals.result.connect(update_handler)
+            self.search_worker.signals.error.connect(self.handle_error)
+
+            global active_workers
+            active_workers += 1
+            self.logger.info("Starting search worker (active workers: %s)", active_workers)
+            thread_pool.start(self.search_worker)
+            self.logger.debug("Search worker successfully added to thread pool")
+        except Exception:
+            self.logger.exception("Failed to setup search worker: %s")
+            raise
 
     def start_processing(self):
         global active_workers
         active_workers += 1
+        self.logger.debug("Started processing (total active workers: %s)", active_workers)
         self.header.start_processing()
 
     def stop_processing(self):
         global active_workers
         active_workers -= 1
+        self.logger.debug("Stopped processing (total active workers: %s)", active_workers)
         self.header.stop_processing()
         if self.llm_worker:
             self.llm_worker.signals.notify_child.emit()
@@ -1436,13 +1765,20 @@ class FormWidget(QGraphicsWidget):
         self.model = new_model
 
     def handle_update(self, text):
+        self.logger.debug("Received worker update: %s characters", len(text))
         self.stop_processing()
         self.update_answer(text)
 
     def handle_finished(self):
+        global active_workers
+        active_workers = max(0, active_workers - 1)
+        self.logger.info("LLM worker finished successfully (active workers: %s)", active_workers)
         self.stop_processing()
 
     def handle_error(self, error):
+        global active_workers
+        active_workers = max(0, active_workers - 1)
+        self.logger.error("LLM worker error (active workers: %d): %s", active_workers, error)
         self.stop_processing()
         self.update_answer(f"Error occurred: {error}")
 
@@ -1578,6 +1914,9 @@ class JsonCanvasExporter:
 class ConfigDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.logger = get_logger("config_dialog")
+        self.logger.debug("Initializing configuration dialog")
+
         self.setWindowTitle("Configuration")
         self.setModal(True)
 
@@ -1604,10 +1943,15 @@ class ConfigDialog(QDialog):
         save_button.clicked.connect(self.accept)
         cancel_button.clicked.connect(self.reject)
 
+        self.logger.info("Configuration dialog initialized successfully")
+
     def get_jina_api_key(self):
-        return self.api_key_input.text()
+        api_key = self.api_key_input.text()
+        self.logger.debug("Retrieved Jina API key from dialog: %s", "[SET]" if api_key else "[EMPTY]")
+        return api_key
 
     def set_jina_api_key(self, jina_api_key):
+        self.logger.debug("Setting Jina API key in dialog: %s", "[SET]" if jina_api_key else "[EMPTY]")
         self.api_key_input.setText(jina_api_key)
 
 
@@ -1615,38 +1959,89 @@ class StateManager:
     def __init__(self, company, application):
         self.settings = QSettings(company, application)
         self.keyring_service = f"{company}-{application}"
+        self.logger = get_logger("state_manager")
+        self.logger.info("StateManager initialized for %s-%s", company, application)
 
     def save_window_state(self, window):
-        self.settings.setValue("window_geometry", window.saveGeometry())
-        self.settings.setValue("window_state", window.saveState())
+        self.logger.debug("Saving window state (geometry and state)")
+        try:
+            self.settings.setValue("window_geometry", window.saveGeometry())
+            self.settings.setValue("window_state", window.saveState())
+            self.logger.info("Window state saved successfully")
+        except Exception:
+            self.logger.exception("Failed to save window state: %s")
+            raise
 
     def restore_window_state(self, window):
-        geometry = self.settings.value("window_geometry")
-        state = self.settings.value("window_state")
+        self.logger.debug("Attempting to restore window state")
+        try:
+            geometry = self.settings.value("window_geometry")
+            state = self.settings.value("window_state")
 
-        if geometry and state:
-            window.restoreGeometry(geometry)
-            window.restoreState(state)
-            return True
-        return False
+            if geometry and state:
+                window.restoreGeometry(geometry)
+                window.restoreState(state)
+                self.logger.info("Window state restored successfully")
+                return True
+            self.logger.debug("No saved window state found")
+            return False
+        except Exception:
+            self.logger.exception("Failed to restore window state: %s")
+            return False
 
     def save_last_file(self, file_path):
-        self.settings.setValue("last_file", file_path)
+        self.logger.debug("Saving last file path: %s", file_path)
+        try:
+            self.settings.setValue("last_file", file_path)
+            self.logger.info("Last file path saved: %s", file_path)
+        except Exception:
+            self.logger.exception("Failed to save last file path: %s")
+            raise
 
     def get_last_file(self):
-        return self.settings.value("last_file")
+        try:
+            last_file = self.settings.value("last_file")
+            self.logger.debug("Retrieved last file path: %s", last_file)
+            return last_file
+        except Exception:
+            self.logger.exception("Failed to get last file path: %s")
+            return None
 
     def clear_settings(self):
-        self.settings.clear()
+        self.logger.info("Clearing all application settings")
+        try:
+            self.settings.clear()
+            self.logger.info("Application settings cleared successfully")
+        except Exception:
+            self.logger.exception("Failed to clear settings: %s")
+            raise
 
     def save_jina_api_key(self, jina_api_key):
-        keyring.set_password(self.keyring_service, "jina_api_key", jina_api_key)
+        self.logger.debug("Saving Jina API key to keyring")
+        try:
+            keyring.set_password(self.keyring_service, "jina_api_key", jina_api_key)
+            self.logger.info("Jina API key saved successfully to keyring")
+        except Exception:
+            self.logger.exception("Failed to save Jina API key: %s")
+            raise
 
     def get_jina_api_key(self):
-        return keyring.get_password(self.keyring_service, "jina_api_key") or ""
+        try:
+            api_key = keyring.get_password(self.keyring_service, "jina_api_key") or ""
+            self.logger.debug("Retrieved Jina API key from keyring: %s", "[SET]" if api_key else "[NOT SET]")
+            return api_key
+        except Exception:
+            self.logger.exception("Failed to get Jina API key: %s")
+            return ""
 
     def clear_jina_api_key(self):
-        keyring.delete_password(self.keyring_service, "jina_api_key")
+        self.logger.info("Clearing Jina API key from keyring")
+        try:
+            keyring.delete_password(self.keyring_service, "jina_api_key")
+            self.logger.info("Jina API key cleared successfully from keyring")
+        except Exception:
+            self.logger.exception("Failed to clear Jina API key: %s")
+            raise
 
 
 class MiniMap(QGraphicsView):
@@ -1989,6 +2384,7 @@ class GraphicsScene(QGraphicsScene):
         self.update_timer = QTimer()
         self.update_timer.setSingleShot(True)
         self.update_timer.timeout.connect(self.itemMoved.emit)
+        self.logger = get_logger("scene")
 
     def addItem(self, item):
         super().addItem(item)
@@ -2021,15 +2417,23 @@ class GraphicsScene(QGraphicsScene):
         form.expand_form()
 
     def create_new_form(self, position):
-        command = CreateFormCommand(self)
-        self.command_invoker.execute(command)
-        new_form = command.created_form
-        new_form.setPos(position)
+        self.logger.info("Creating new form at position (%.1f, %.1f)", position.x(), position.y())
+        try:
+            command = CreateFormCommand(self)
+            self.command_invoker.execute(command)
+            new_form = command.created_form
+            new_form.setPos(position)
+            self.logger.info("New form created successfully")
+            return new_form
+        except Exception:
+            self.logger.exception("Failed to create new form: %s")
+            raise
 
 
 class MainWindow(QMainWindow):
     def __init__(self, auto_load_state=True):
         super().__init__()
+        self.logger = get_logger("mainwindow")
         self.state_manager = StateManager("deskriders", "chatcircuit")
         self.setWindowTitle(APPLICATION_TITLE)
 
@@ -2050,22 +2454,35 @@ class MainWindow(QMainWindow):
 
     def export_to_markdown(self):
         """Export all chat content to a markdown file."""
+        self.logger.info("Initiating markdown export")
         file_name, _ = QFileDialog.getSaveFileName(self, "Export to Markdown", "", "Markdown Files (*.md)")
 
         if not file_name:
+            self.logger.info("Markdown export cancelled by user")
             return
 
+        self.logger.info("Exporting to markdown file: %s", file_name)
         markdown_content = []
 
         # Get content from all root forms (forms without parents)
+        root_forms_count = 0
         for item in self.scene.items():
             if isinstance(item, FormWidget) and not item.parent_form:
                 markdown_content.append(item.get_markdown_hierarchy())
+                root_forms_count += 1
+
+        self.logger.debug("Collected content from %s root forms", root_forms_count)
 
         # Write to file
         try:
+            content_text = "\n\n".join(markdown_content)
             with Path(file_name).open("w", encoding="utf-8") as f:
-                f.write("\n\n".join(markdown_content))
+                f.write(content_text)
+
+            file_size = Path(file_name).stat().st_size
+            self.logger.info(
+                "Successfully exported to %s (%d bytes, %d characters)", file_name, file_size, len(content_text)
+            )
 
             QMessageBox.information(
                 self,
@@ -2073,6 +2490,7 @@ class MainWindow(QMainWindow):
                 f"Chat content has been exported to {file_name}",
             )
         except Exception as e:
+            self.logger.exception("Failed to export to markdown %s: %s", file_name)
             QMessageBox.critical(self, "Export Failed", f"Failed to export chat content: {e!s}")
 
     def update_scene_rect(self):
@@ -2181,45 +2599,119 @@ class MainWindow(QMainWindow):
         api_config_action.triggered.connect(self.show_config_dialog)
         config_menu.addAction(api_config_action)
 
+        config_menu.addSeparator()
+
+        open_logs_action = QAction("Open Log Directory", self)
+        open_logs_action.triggered.connect(self.open_log_directory)
+        config_menu.addAction(open_logs_action)
+
     def show_config_dialog(self):
-        dialog = ConfigDialog(self)
-        dialog.set_jina_api_key(self.jina_api_key)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.jina_api_key = dialog.get_jina_api_key()
-            self.state_manager.save_jina_api_key(self.jina_api_key)
-            QMessageBox.information(self, "Configuration", "Jina API Key saved successfully!")
+        self.logger.info("Opening configuration dialog")
+        try:
+            dialog = ConfigDialog(self)
+            dialog.set_jina_api_key(self.jina_api_key)
+
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.logger.info("Configuration dialog accepted, saving settings")
+                self.jina_api_key = dialog.get_jina_api_key()
+                self.state_manager.save_jina_api_key(self.jina_api_key)
+                self.logger.info("Configuration saved successfully")
+                QMessageBox.information(self, "Configuration", "Jina API Key saved successfully!")
+            else:
+                self.logger.info("Configuration dialog cancelled by user")
+        except Exception as e:
+            self.logger.exception("Error in configuration dialog: %s")
+            QMessageBox.critical(self, "Configuration Error", f"Failed to save configuration: {e}")
+
+    def open_log_directory(self):
+        """Open the log directory in the system's file manager."""
+        self.logger.info("Opening log directory in file manager")
+        try:
+            log_dir = get_log_directory()
+            self.logger.debug("Log directory path: %s", log_dir)
+
+            # Ensure the directory exists
+            if not log_dir.exists():
+                self.logger.warning("Log directory does not exist: %s", log_dir)
+                QMessageBox.warning(self, "Log Directory", f"Log directory does not exist:\n{log_dir}")
+                return
+
+            # Open directory in system file manager
+            import subprocess
+            import sys
+
+            if sys.platform == "darwin":  # macOS
+                subprocess.run(["/usr/bin/open", str(log_dir)], check=True)  # noqa: S603
+            elif sys.platform == "win32":  # Windows
+                subprocess.run(["C:\\Windows\\system32\\explorer.exe", str(log_dir)], check=True)  # noqa: S603
+            else:  # Linux and other Unix-like systems
+                subprocess.run(["/usr/bin/xdg-open", str(log_dir)], check=True)  # noqa: S603
+
+            self.logger.info("Successfully opened log directory: %s", log_dir)
+
+        except Exception as e:
+            self.logger.exception("Failed to open log directory: %s")
+            QMessageBox.critical(self, "Error", f"Failed to open log directory:\n{e}")
 
     def export_to_png(self):
         """Export the entire canvas as a high-quality PNG image."""
+        self.logger.info("Initiating PNG export")
         file_name, _ = QFileDialog.getSaveFileName(self, "Export to PNG", "", "PNG Files (*.png)")
 
         if not file_name:
+            self.logger.info("PNG export cancelled by user")
             return
 
-        # Calculate the scene bounding rect
-        scene_rect = self.scene.itemsBoundingRect()
-        scene_rect = scene_rect.adjusted(-100, -100, 100, 100)  # Add some padding
+        self.logger.info("Exporting canvas to PNG: %s", file_name)
 
-        # Render the scene to a QImage
-        image = QImage(scene_rect.size().toSize(), QImage.Format.Format_ARGB32)
-        image.fill(Qt.GlobalColor.white)  # Fill with white background
-        painter = QPainter(image)
-        self.scene.render(painter, QRectF(image.rect()), scene_rect)
-        painter.end()
+        try:
+            # Calculate the scene bounding rect
+            scene_rect = self.scene.itemsBoundingRect()
+            scene_rect = scene_rect.adjusted(-100, -100, 100, 100)  # Add some padding
+            self.logger.debug("Scene rect for export: %dx%d", scene_rect.width(), scene_rect.height())
 
-        # Save the image
-        if image.save(file_name, "PNG", 100):
-            QMessageBox.information(self, "Export Successful", f"Canvas has been exported to {file_name}")
-        else:
-            QMessageBox.critical(self, "Export Failed", "Failed to export canvas to PNG.")
+            # Render the scene to a QImage
+            image = QImage(scene_rect.size().toSize(), QImage.Format.Format_ARGB32)
+            image.fill(Qt.GlobalColor.white)  # Fill with white background
+            painter = QPainter(image)
+            self.scene.render(painter, QRectF(image.rect()), scene_rect)
+            painter.end()
+
+            # Save the image
+            if image.save(file_name, "PNG", 100):
+                file_size = Path(file_name).stat().st_size
+                self.logger.info(
+                    "Successfully exported PNG to %s (%d bytes, %dx%dx)",
+                    file_name,
+                    file_size,
+                    image.width(),
+                    image.height(),
+                )
+                QMessageBox.information(self, "Export Successful", f"Canvas has been exported to {file_name}")
+            else:
+                self.logger.error("Failed to save PNG image to %s", file_name)
+                QMessageBox.critical(self, "Export Failed", "Failed to export canvas to PNG.")
+        except Exception as e:
+            self.logger.exception("Error during PNG export to %s: %s", file_name)
+            QMessageBox.critical(self, "Export Failed", f"Failed to export canvas to PNG: {e}")
 
     def export_to_json_canvas(self):
+        self.logger.info("Initiating JSON Canvas export")
         file_name, _ = QFileDialog.getSaveFileName(self, "Export to JSON Canvas", "", "Canvas Files (*.canvas)")
         if not file_name:
+            self.logger.info("JSON Canvas export cancelled by user")
             return
 
-        exporter = JsonCanvasExporter(self.scene)
-        exporter.export(file_name)
+        self.logger.info("Exporting to JSON Canvas file: %s", file_name)
+        try:
+            exporter = JsonCanvasExporter(self.scene)
+            exporter.export(file_name)
+
+            file_size = Path(file_name).stat().st_size
+            self.logger.info("Successfully exported to JSON Canvas: %s (%d bytes)", file_name, file_size)
+        except Exception:
+            self.logger.exception("Failed to export to JSON Canvas %s: %s", file_name)
+            raise
 
     def new_document(self):
         self.state_manager.save_last_file("")
@@ -2227,47 +2719,84 @@ class MainWindow(QMainWindow):
         self.save_state()
 
     def save_state(self):
+        self.logger.info("Initiating save state operation")
         file_name = self.state_manager.get_last_file()
         if not file_name:
+            self.logger.debug("No previous file found, opening save dialog")
             file_name, _ = QFileDialog.getSaveFileName(self, "Save File", "", "JSON Files (*.json)")
 
         if not file_name:
+            self.logger.info("Save operation cancelled by user")
             return
 
-        states = []
-        for item in self.scene.items():
-            if isinstance(item, FormWidget) and not item.parent_form:
-                states.append(item.to_dict())
+        self.logger.info("Saving state to file: %s", file_name)
 
-        document_data = {"zoom_factor": self.zoom_factor, "canvas_state": states}
-        with Path(file_name).open("w") as f:
-            json.dump(document_data, f, indent=2)
+        try:
+            states = []
+            for item in self.scene.items():
+                if isinstance(item, FormWidget) and not item.parent_form:
+                    states.append(item.to_dict())
 
-        self.setWindowTitle(f"{APPLICATION_TITLE} - {file_name}")
-        self.state_manager.save_last_file(file_name)
+            self.logger.debug("Collected %s form states for saving", len(states))
+
+            document_data = {"zoom_factor": self.zoom_factor, "canvas_state": states}
+            with Path(file_name).open("w") as f:
+                json.dump(document_data, f, indent=2)
+
+            file_size = Path(file_name).stat().st_size
+            self.logger.info("Successfully saved state to %s (%d bytes)", file_name, file_size)
+
+            self.setWindowTitle(f"{APPLICATION_TITLE} - {file_name}")
+            self.state_manager.save_last_file(file_name)
+        except Exception:
+            self.logger.exception("Failed to save state to %s: %s", file_name)
+            raise
 
     def load_state(self):
+        self.logger.info("Initiating load state operation")
         file_name, _ = QFileDialog.getOpenFileName(self, "Open File", "", "JSON Files (*.json)")
+
+        if not file_name:
+            self.logger.info("Load operation cancelled by user")
+            return
+
         if Path(file_name).exists():
+            self.logger.info("Loading state from file: %s", file_name)
             self.state_manager.save_last_file(file_name)
             self.load_from_file(file_name)
         else:
-            print(f"File {file_name} not found.")
+            self.logger.warning("File %s not found.", file_name)
 
     def load_from_file(self, file_name):
-        if Path(file_name).exists():
-            with Path(file_name).open() as f:
-                document_data = json.load(f)
-        else:
-            raise LookupError(f"Unable to find file {file_name}")
+        self.logger.debug("Loading from file: %s", file_name)
 
-        self.zoom_factor = document_data.get("zoom_factor", self.zoom_factor)
-        self.view.zoom_to(self.zoom_factor)
+        try:
+            if Path(file_name).exists():
+                file_size = Path(file_name).stat().st_size
+                self.logger.debug("File size: %s bytes", file_size)
 
-        self.scene.clear()
-        for form_data in document_data.get("canvas_state", []):
-            FormWidget.from_dict(form_data, self.scene)
-        self.setWindowTitle(f"{APPLICATION_TITLE} - {file_name}")
+                with Path(file_name).open() as f:
+                    document_data = json.load(f)
+            else:
+                self.logger.error("File not found: %s", file_name)
+                raise LookupError(f"Unable to find file {file_name}")
+
+            self.zoom_factor = document_data.get("zoom_factor", self.zoom_factor)
+            self.logger.debug("Restored zoom factor: %s", self.zoom_factor)
+            self.view.zoom_to(self.zoom_factor)
+
+            canvas_state = document_data.get("canvas_state", [])
+            self.logger.debug("Loading %s form states", len(canvas_state))
+
+            self.scene.clear()
+            for form_data in canvas_state:
+                FormWidget.from_dict(form_data, self.scene)
+
+            self.setWindowTitle(f"{APPLICATION_TITLE} - {file_name}")
+            self.logger.info("Successfully loaded state from %s (%d forms)", file_name, len(canvas_state))
+        except Exception:
+            self.logger.exception("Failed to load from file %s: %s", file_name)
+            raise
 
     def undo(self):
         self.scene.command_invoker.undo()
@@ -2312,17 +2841,58 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", f"Failed to load the last file: {file_name}")
 
     def closeEvent(self, event):
+        self.logger.info("Application shutdown initiated")
         self.state_manager.save_window_state(self)
         self.save_state()
+        self.logger.info("Application state saved successfully")
         super().closeEvent(event)
+        self.logger.info("Application shutdown completed")
 
 
 def main():
+    logger.info("Starting %s application", APPLICATION_TITLE)
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon(resource_path("resources/icon.png")))
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+
+    # Try to set the application icon, but don't fail if it's not available
+    try:
+        # Try multiple icon formats
+        icon_formats = ["resources/icon.png", "resources/icon.ico", "resources/icon.icns"]
+        icon_loaded = False
+
+        for icon_file in icon_formats:
+            icon_path = resource_path(icon_file)
+            logger.debug("Trying to load application icon from: %s", icon_path)
+
+            if Path(icon_path).exists():
+                try:
+                    icon = QIcon(str(icon_path))
+                    if not icon.isNull():
+                        app.setWindowIcon(icon)
+                        logger.info("Application icon loaded successfully from: %s", icon_file)
+                        icon_loaded = True
+                        break
+                    logger.debug("Icon file exists but QIcon is null: %s", icon_path)
+                except Exception as icon_error:
+                    logger.debug("Failed to load icon %s: %s", icon_path, icon_error)
+            else:
+                logger.debug("Icon file not found: %s", icon_path)
+
+        if not icon_loaded:
+            logger.info("No application icon loaded - using default")
+
+    except Exception as e:
+        logger.warning("Error during application icon loading: %s", e)
+
+    try:
+        window = MainWindow()
+        window.show()
+        logger.info("Application window displayed successfully")
+        exit_code = app.exec()
+        logger.info("Application exiting with code: %s", exit_code)
+        sys.exit(exit_code)
+    except Exception as e:
+        logger.critical("Critical error during application startup: %s", e, exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
