@@ -6,6 +6,7 @@
 !resources/
 !scripts/
 !tests/
+!.trae/
 
 # unignore files
 !.gitignore
