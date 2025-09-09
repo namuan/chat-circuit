@@ -1,13 +1,11 @@
 import faulthandler
 import json
 import math
-import os
 import random
 import re
 import sys
 import uuid
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections import deque
 from os import linesep
 from pathlib import Path
@@ -18,73 +16,78 @@ import requests
 from duckduckgo_search import DDGS
 from litellm import completion
 from PyQt6.QtCore import (
+    QEasingCurve,
+    QEvent,
+    QObject,
+    QPoint,
+    QPointF,
+    QPropertyAnimation,
+    QRect,
+    QRectF,
+    QRunnable,
+    QSettings,
+    QSize,
+    QSizeF,
+    Qt,
+    QThreadPool,
+    QTimer,
     pyqtProperty,
+    pyqtSignal,
 )
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtCore import QEasingCurve
-from PyQt6.QtCore import QEvent
-from PyQt6.QtCore import QObject
-from PyQt6.QtCore import QPoint
-from PyQt6.QtCore import QPointF
-from PyQt6.QtCore import QPropertyAnimation
-from PyQt6.QtCore import QRect
-from PyQt6.QtCore import QRectF
-from PyQt6.QtCore import QRunnable
-from PyQt6.QtCore import QSettings
-from PyQt6.QtCore import QSize
-from PyQt6.QtCore import QSizeF
-from PyQt6.QtCore import Qt
-from PyQt6.QtCore import QThreadPool
-from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QAction
-from PyQt6.QtGui import QBrush
-from PyQt6.QtGui import QColor
-from PyQt6.QtGui import QCursor
-from PyQt6.QtGui import QFont
-from PyQt6.QtGui import QFontMetrics
-from PyQt6.QtGui import QIcon
-from PyQt6.QtGui import QImage
-from PyQt6.QtGui import QKeyEvent
-from PyQt6.QtGui import QKeySequence
-from PyQt6.QtGui import QPainter
-from PyQt6.QtGui import QPen
-from PyQt6.QtGui import QPolygonF
-from PyQt6.QtGui import QTextDocument
-from PyQt6.QtGui import QTransform
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtWidgets import QComboBox
-from PyQt6.QtWidgets import QDialog
-from PyQt6.QtWidgets import QFileDialog
-from PyQt6.QtWidgets import QGraphicsEllipseItem
-from PyQt6.QtWidgets import QGraphicsItem
-from PyQt6.QtWidgets import QGraphicsItemGroup
-from PyQt6.QtWidgets import QGraphicsLinearLayout
-from PyQt6.QtWidgets import QGraphicsPolygonItem
-from PyQt6.QtWidgets import QGraphicsProxyWidget
-from PyQt6.QtWidgets import QGraphicsRectItem
-from PyQt6.QtWidgets import QGraphicsScene
-from PyQt6.QtWidgets import QGraphicsView
-from PyQt6.QtWidgets import QGraphicsWidget
-from PyQt6.QtWidgets import QHBoxLayout
-from PyQt6.QtWidgets import QLabel
-from PyQt6.QtWidgets import QLineEdit
-from PyQt6.QtWidgets import QListWidget
-from PyQt6.QtWidgets import QListWidgetItem
-from PyQt6.QtWidgets import QMainWindow
-from PyQt6.QtWidgets import QMenu
-from PyQt6.QtWidgets import QMessageBox
-from PyQt6.QtWidgets import QProgressBar
-from PyQt6.QtWidgets import QPushButton
-from PyQt6.QtWidgets import QRubberBand
-from PyQt6.QtWidgets import QScrollBar
-from PyQt6.QtWidgets import QSizePolicy
-from PyQt6.QtWidgets import QTextBrowser
-from PyQt6.QtWidgets import QTextEdit
-from PyQt6.QtWidgets import QVBoxLayout
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtGui import (
+    QAction,
+    QBrush,
+    QColor,
+    QCursor,
+    QFont,
+    QFontMetrics,
+    QIcon,
+    QImage,
+    QKeyEvent,
+    QKeySequence,
+    QPainter,
+    QPen,
+    QPolygonF,
+    QTextDocument,
+    QTransform,
+)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QGraphicsEllipseItem,
+    QGraphicsItem,
+    QGraphicsItemGroup,
+    QGraphicsLinearLayout,
+    QGraphicsPolygonItem,
+    QGraphicsProxyWidget,
+    QGraphicsRectItem,
+    QGraphicsScene,
+    QGraphicsView,
+    QGraphicsWidget,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QRubberBand,
+    QScrollBar,
+    QSizePolicy,
+    QTextBrowser,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 faulthandler.enable()
-faulthandler.dump_traceback(open("crash.log", "w"))
+with Path("crash.log").open("w") as f:
+    faulthandler.dump_traceback(f)
 
 APPLICATION_TITLE = "Chat Circuit"
 
@@ -95,16 +98,16 @@ def resource_path(relative_path):
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
-        base_path = os.path.abspath(".")
+        base_path = Path().resolve()
 
-    return os.path.join(base_path, relative_path)
+    return base_path / relative_path
 
 
 def load_models_from_config(config_file="models.conf"):
-    config_path = os.path.join(os.path.dirname(__file__), config_file)
+    config_path = Path(__file__).parent / config_file
 
     try:
-        with open(config_path) as f:
+        with config_path.open() as f:
             models = [line.strip() for line in f if line.strip()]
     except FileNotFoundError:
         print(f"Config file {config_file} not found. Using default models.")
@@ -131,8 +134,7 @@ class DuckDuckGo:
     def search(self, query: str) -> str:
         results = self.ddgs.text(query, max_results=10)
         processed_results = [
-            f"**[{result['title']}]({result['href']})**\n\n{result['body']}\n\n{result['href']}"
-            for result in results
+            f"**[{result['title']}]({result['href']})**\n\n{result['body']}\n\n{result['href']}" for result in results
         ]
         return "### Search Results\n\n" + "\n\n".join(processed_results)
 
@@ -193,9 +195,7 @@ class CustomFilePicker(QWidget):
     def show_file_list(self):
         if self.selected_file_paths:
             file_list_dialog = QDialog(None)
-            file_list_dialog.setWindowFlags(
-                Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
-            )
+            file_list_dialog.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
 
             dialog_layout = QVBoxLayout(file_list_dialog)
             dialog_layout.setContentsMargins(0, 0, 0, 0)
@@ -219,13 +219,13 @@ class CustomFilePicker(QWidget):
             """)
 
             for file_path in self.selected_file_paths:
-                file_name = os.path.basename(file_path)
+                file_name = Path(file_path).name
                 file_item_widget = QWidget()
                 file_item_layout = QHBoxLayout(file_item_widget)
                 file_item_layout.setContentsMargins(5, 0, 5, 0)
                 file_item_layout.setSpacing(5)
 
-                remove_file_button = QPushButton("×")
+                remove_file_button = QPushButton("x")
                 remove_file_button.setFixedSize(20, 20)
                 remove_file_button.setStyleSheet("""
                 QPushButton {
@@ -239,9 +239,7 @@ class CustomFilePicker(QWidget):
                     color: darkred;
                 }
                 """)
-                remove_file_button.clicked.connect(
-                    lambda _, path=file_path: self.remove_file(path, file_list_widget)
-                )
+                remove_file_button.clicked.connect(lambda _, path=file_path: self.remove_file(path, file_list_widget))
 
                 file_name_label = QLabel(file_name)
                 file_name_label.setStyleSheet("""
@@ -280,10 +278,13 @@ class CustomFilePicker(QWidget):
                     self.dialog = dialog
 
                 def eventFilter(self, obj, event):
-                    if event.type() == QEvent.Type.Leave and obj == self.dialog:
-                        if not self.dialog.geometry().contains(QCursor.pos()):
-                            self.dialog.close()
-                            return True
+                    if (
+                        event.type() == QEvent.Type.Leave
+                        and obj == self.dialog
+                        and not self.dialog.geometry().contains(QCursor.pos())
+                    ):
+                        self.dialog.close()
+                        return True
                     return False
 
             click_outside_filter = ClickOutsideFilter(file_list_dialog)
@@ -303,12 +304,8 @@ class CustomFilePicker(QWidget):
             file_list_widget.takeItem(index)
 
     def update_list_position(self, list_height: int):
-        file_count_button_pos = self.file_count_button.mapToGlobal(
-            self.file_count_button.rect().topLeft()
-        )
-        self.dialog.move(
-            file_count_button_pos.x(), file_count_button_pos.y() - list_height
-        )
+        file_count_button_pos = self.file_count_button.mapToGlobal(self.file_count_button.rect().topLeft())
+        self.dialog.move(file_count_button_pos.x(), file_count_button_pos.y() - list_height)
 
 
 class CommandInvoker:
@@ -335,8 +332,7 @@ class CommandInvoker:
 
 
 def create_svg_icon(file_path):
-    icon = QIcon(file_path)
-    return icon
+    return QIcon(file_path)
 
 
 def create_button(icon_path, tooltip, callback):
@@ -501,9 +497,7 @@ class CloneBranchCommand(Command):
     def execute(self):
         self.parent_form = self.source_form.parent_form
         new_pos = self.source_form.pos() + QPointF(200, 600)  # Offset the new branch
-        self.cloned_forms = self._clone_branch(
-            self.source_form, self.parent_form, new_pos
-        )
+        self.cloned_forms = self._clone_branch(self.source_form, self.parent_form, new_pos)
 
     def undo(self):
         for form in self.cloned_forms:
@@ -512,19 +506,13 @@ class CloneBranchCommand(Command):
             if form.link_line and form.link_line.scene() == self.scene:
                 self.scene.removeItem(form.link_line)
         if self.parent_form:
-            self.parent_form.child_forms = [
-                f for f in self.parent_form.child_forms if f not in self.cloned_forms
-            ]
+            self.parent_form.child_forms = [f for f in self.parent_form.child_forms if f not in self.cloned_forms]
 
     def _clone_branch(self, source_form, parent_form, position):
         cloned_form = FormWidget(parent=parent_form, model=source_form.model)
         cloned_form.setPos(position)
-        cloned_form.input_box.widget().setPlainText(
-            source_form.input_box.widget().toPlainText()
-        )
-        cloned_form.conversation_area.widget().setPlainText(
-            source_form.conversation_area.widget().toPlainText()
-        )
+        cloned_form.input_box.widget().setPlainText(source_form.input_box.widget().toPlainText())
+        cloned_form.conversation_area.widget().setPlainText(source_form.conversation_area.widget().toPlainText())
 
         self.scene.addItem(cloned_form)
 
@@ -832,9 +820,7 @@ class LlmWorker(QRunnable):
         try:
             formatted_messages = []
             if self.system_message:
-                formatted_messages.append(
-                    {"role": "system", "content": self.system_message}
-                )
+                formatted_messages.append({"role": "system", "content": self.system_message})
             formatted_messages.extend(self.messages)
 
             response = completion(
@@ -892,7 +878,7 @@ class JinaReaderWorker(QRunnable):
                 "Authorization": f"Bearer {self.jina_api_key}",
                 "x-engine": "readerlm-v2",
             }
-            response = requests.get(jina_url, headers=headers)
+            response = requests.get(jina_url, headers=headers, timeout=30)
             response.raise_for_status()
 
             content = response.text
@@ -929,9 +915,7 @@ class ResizeHandle(QGraphicsWidget):
     def mouseMoveEvent(self, event):
         if self.resizing:
             delta = event.scenePos() - self.initial_pos
-            new_width = max(
-                self.initial_size.width() + delta.x(), self.parentItem().minimumWidth()
-            )
+            new_width = max(self.initial_size.width() + delta.x(), self.parentItem().minimumWidth())
             new_height = max(
                 self.initial_size.height() + delta.y(),
                 self.parentItem().minimumHeight(),
@@ -1017,12 +1001,8 @@ class FormWidget(QGraphicsWidget):
         conversation_widget.anchorClicked.connect(self.handle_link_click)
         self.conversation_area.setWidget(conversation_widget)
         chat_layout.addItem(self.conversation_area)
-        self.conversation_area.widget().setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu
-        )
-        self.conversation_area.widget().customContextMenuRequested.connect(
-            self.show_context_menu
-        )
+        self.conversation_area.widget().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.conversation_area.widget().customContextMenuRequested.connect(self.show_context_menu)
 
         # Create a horizontal layout for emoji and input box
         input_layout = QGraphicsLinearLayout(Qt.Orientation.Horizontal)
@@ -1030,17 +1010,11 @@ class FormWidget(QGraphicsWidget):
         # Input box
         self.input_box = QGraphicsProxyWidget()
         self.input_text_edit = QTextEdit()
-        self.input_text_edit.setPlaceholderText(
-            "Prompt (and press Ctrl+Enter to submit)"
-        )
+        self.input_text_edit.setPlaceholderText("Prompt (and press Ctrl+Enter to submit)")
         self.input_text_edit.setMinimumHeight(30)
-        self.input_text_edit.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
-        )
+        self.input_text_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.input_box.setWidget(self.input_text_edit)
-        self.input_box.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
-        )
+        self.input_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         # Connect the key press event
         self.input_text_edit.installEventFilter(self)
@@ -1048,12 +1022,8 @@ class FormWidget(QGraphicsWidget):
         input_layout.addItem(self.input_box)
 
         # Create labels
-        self.web_emoji_label = self.create_emoji_label(
-            emoji="🌐", click_handler=self.web_emoji_label_clicked
-        )
-        self.emoji_label = self.create_emoji_label(
-            emoji="❓", click_handler=self.emoji_label_clicked
-        )
+        self.web_emoji_label = self.create_emoji_label(emoji="🌐", click_handler=self.web_emoji_label_clicked)
+        self.emoji_label = self.create_emoji_label(emoji="❓", click_handler=self.emoji_label_clicked)
         self.emoji_container = QWidget()
         emoji_container_layout = QHBoxLayout(self.emoji_container)
         emoji_container_layout.setSpacing(2)
@@ -1166,22 +1136,15 @@ class FormWidget(QGraphicsWidget):
         text_height = doc.size().height() + 100  # Add some padding
 
         new_height = max(
-            text_height
-            + self.input_box.size().height()
-            + self.header.size().height()
-            + 50,
+            text_height + self.input_box.size().height() + self.header.size().height() + 50,
             self.minimumHeight(),
         )
 
         self.animation.setStartValue(self.geometry())
-        self.animation.setEndValue(
-            QRectF(self.pos(), QSizeF(self.size().width(), new_height))
-        )
+        self.animation.setEndValue(QRectF(self.pos(), QSizeF(self.size().width(), new_height)))
         self.animation.start()
 
-    def create_emoji_label(
-        self, emoji, click_handler, font_size=14, hover_color="lightgray"
-    ):
+    def create_emoji_label(self, emoji, click_handler, font_size=14, hover_color="lightgray"):
         emoji_label = QLabel(emoji)
         emoji_label.setStyleSheet(
             f"""
@@ -1215,25 +1178,22 @@ class FormWidget(QGraphicsWidget):
 
     def update_resize_handle(self):
         if self.resize_handle:
-            self.resize_handle.setPos(
-                self.rect().width() - 10, self.rect().height() - 10
-            )
+            self.resize_handle.setPos(self.rect().width() - 10, self.rect().height() - 10)
 
     def eventFilter(self, obj, event):
-        if obj == self.input_text_edit and event.type() == event.Type.KeyPress:
-            if (
-                event.key() == Qt.Key.Key_Return
-                and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-            ):
-                self.submit_form()
-                return True
+        if (
+            obj == self.input_text_edit
+            and event.type() == event.Type.KeyPress
+            and event.key() == Qt.Key.Key_Return
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
+            self.submit_form()
+            return True
         return super().eventFilter(obj, event)
 
     def adjust_input_box_height(self):
         document = self.input_text_edit.document()
-        new_height = max(
-            document.size().height() + 10, 30
-        )  # Add some padding and set minimum height
+        new_height = max(document.size().height() + 10, 30)  # Add some padding and set minimum height
         if new_height != self.input_box.size().height():
             max_height = 150
             new_height = min(int(new_height), max_height)
@@ -1285,10 +1245,7 @@ class FormWidget(QGraphicsWidget):
             event.ignore()
 
     def mouseMoveEvent(self, event):
-        if (
-            self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable
-            and not self.circle_item.isUnderMouse()
-        ):
+        if self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable and not self.circle_item.isUnderMouse():
             super().mouseMoveEvent(event)
             self.update_link_lines()
         else:
@@ -1297,10 +1254,10 @@ class FormWidget(QGraphicsWidget):
     def generate_follow_up_questions(self):
         # Gather the current conversation context
         context_data = []
-        for i, data in enumerate(self.gather_form_data()):
+        for _i, data in enumerate(self.gather_form_data()):
             context = data["context"]
             if context:
-                message = dict(role="user", content=context)
+                message = {"role": "user", "content": context}
                 context_data.append(message)
 
         # Construct the prompt for generating follow-up questions
@@ -1311,14 +1268,12 @@ class FormWidget(QGraphicsWidget):
             "Just list the 3 questions without any other text."
             "Do not prefix the questions with a number."
         )
-        context_data.append(dict(role="user", content=prompt))
+        context_data.append({"role": "user", "content": prompt})
 
         self.highlight_hierarchy()
         self.start_processing()
 
-        self.setup_llm_worker(
-            context_data, update_handler=self.handle_follow_up_questions
-        )
+        self.setup_llm_worker(context_data, update_handler=self.handle_follow_up_questions)
 
     def handle_follow_up_questions(self, text):
         try:
@@ -1335,7 +1290,7 @@ class FormWidget(QGraphicsWidget):
                     new_form = command.created_form
                     new_form.input_box.widget().setPlainText(question)
         except Exception as e:
-            self.handle_error(f"Error parsing follow-up questions: {str(e)}")
+            self.handle_error(f"Error parsing follow-up questions: {e!s}")
 
     def clone_branch(self):
         command = CloneBranchCommand(self.scene(), self)
@@ -1401,9 +1356,7 @@ class FormWidget(QGraphicsWidget):
             return
 
         # Check if the input is a URL
-        url_pattern = re.compile(
-            r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+"
-        )
+        url_pattern = re.compile(r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+")
         if url_pattern.match(input_text):
             self.fetch_jina_reader_content(input_text)
         else:
@@ -1426,7 +1379,7 @@ class FormWidget(QGraphicsWidget):
         Summarize the following content:
         {content}
         """
-        context_data = [dict(role="user", content=context_with_prompt)]
+        context_data = [{"role": "user", "content": context_with_prompt}]
         self.setup_llm_worker(context_data, update_handler=self.handle_update)
 
     def process_llm_request(self, input_text):
@@ -1435,21 +1388,19 @@ class FormWidget(QGraphicsWidget):
         for data in form_data:
             context = data["context"]
             if context:
-                message = dict(role="user", content=context)
+                message = {"role": "user", "content": context}
                 context_data.append(message)
 
         selected_files = self.picker.get_selected_files()
         for selected_file in selected_files:
             try:
                 file_content = Path(selected_file).read_text(encoding="utf-8")
-                file_message = dict(
-                    role="user", content=linesep.join([selected_file, file_content])
-                )
+                file_message = {"role": "user", "content": linesep.join([selected_file, file_content])}
                 context_data.append(file_message)
             except OSError as e:
                 print(f"Unable to open file {selected_file}: {e}")
 
-        current_message = dict(role="user", content=input_text)
+        current_message = {"role": "user", "content": input_text}
         context_data.append(current_message)
 
         self.highlight_hierarchy()
@@ -1578,7 +1529,7 @@ class JsonCanvasExporter:
         edges = []
         form_ids = {}
 
-        for i, item in enumerate(self.scene.items()):
+        for _i, item in enumerate(self.scene.items()):
             if isinstance(item, FormWidget) and not item.parent_form:
                 form_id = str(uuid.uuid4())
                 form_ids[item] = form_id
@@ -1587,7 +1538,7 @@ class JsonCanvasExporter:
 
         canvas_data = {"nodes": nodes, "edges": edges}
 
-        with open(file_name, "w") as f:
+        with Path(file_name).open("w") as f:
             json.dump(canvas_data, f, indent=2)
 
     def export_child_forms(self, form, parent_id, nodes, edges, form_ids):
@@ -1612,9 +1563,7 @@ class JsonCanvasExporter:
             "y": y,
             "width": width,
             "height": height,
-            "text": form.input_box.widget().toPlainText()
-            + "\n\n"
-            + form.conversation_area.widget().toPlainText(),
+            "text": form.input_box.widget().toPlainText() + "\n\n" + form.conversation_area.widget().toPlainText(),
         }
 
     def create_edge(self, source_id, target_id):
@@ -1708,9 +1657,7 @@ class MiniMap(QGraphicsView):
         self.setFixedSize(200, 150)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setStyleSheet(
-            "background: rgba(200, 200, 200, 150); border: 1px solid gray;"
-        )
+        self.setStyleSheet("background: rgba(200, 200, 200, 150); border: 1px solid gray;")
         self.viewport_rect = None
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -1731,9 +1678,7 @@ class MiniMap(QGraphicsView):
                 mini_item.setPen(item.pen())
                 self.scene().addItem(mini_item)
 
-        viewport_rect = self.main_view.mapToScene(
-            self.main_view.viewport().rect()
-        ).boundingRect()
+        viewport_rect = self.main_view.mapToScene(self.main_view.viewport().rect()).boundingRect()
         self.viewport_rect = QGraphicsRectItem(viewport_rect)
         self.viewport_rect.setBrush(QBrush(QColor(0, 0, 255, 50)))
         self.viewport_rect.setPen(QPen(Qt.PenStyle.NoPen))
@@ -1787,10 +1732,7 @@ class CustomGraphicsView(QGraphicsView):
         # Create zoom scroll bar
         self.zoom_scrollbar = QScrollBar(Qt.Orientation.Horizontal, self)
         self.zoom_scrollbar.setRange(0, 100)
-        initial_scrollbar_value = int(
-            ((self.current_zoom - self.min_zoom) / (self.max_zoom - self.min_zoom))
-            * 100
-        )
+        initial_scrollbar_value = int(((self.current_zoom - self.min_zoom) / (self.max_zoom - self.min_zoom)) * 100)
         self.zoom_scrollbar.setValue(initial_scrollbar_value)
         self.zoom_scrollbar.valueChanged.connect(self.zoom_scrollbar_changed)
 
@@ -1839,12 +1781,8 @@ class CustomGraphicsView(QGraphicsView):
         painter.drawRoundedRect(self._instruction_rect, 5, 5)
 
         # Calculate available space
-        available_width = (
-            self._instruction_rect.width() - 20
-        )  # 10px padding on each side
-        available_height = (
-            self._instruction_rect.height() - 20
-        )  # 10px padding on top and bottom
+        available_width = self._instruction_rect.width() - 20  # 10px padding on each side
+        available_height = self._instruction_rect.height() - 20  # 10px padding on top and bottom
 
         # Draw text only if there's enough space
         if available_width > 100 and available_height > fm.height() * 3:
@@ -1902,9 +1840,7 @@ class CustomGraphicsView(QGraphicsView):
 
     def update_instruction_rect(self):
         fm = QFontMetrics(self.instruction_font)
-        text_width = max(
-            fm.horizontalAdvance(line) for line in self.instruction_text.split("\n")
-        )
+        text_width = max(fm.horizontalAdvance(line) for line in self.instruction_text.split("\n"))
         text_height = fm.height() * len(self.instruction_text.split("\n"))
         padding = 10
         self.full_width = text_width + 2 * padding
@@ -1913,24 +1849,16 @@ class CustomGraphicsView(QGraphicsView):
         self.small_height = 30
 
         if self.is_expanded:
-            self._instruction_rect = QRectF(
-                padding, padding, self.full_width, self.full_height
-            )
+            self._instruction_rect = QRectF(padding, padding, self.full_width, self.full_height)
         else:
-            self._instruction_rect = QRectF(
-                padding, padding, self.small_width, self.small_height
-            )
+            self._instruction_rect = QRectF(padding, padding, self.small_width, self.small_height)
 
     def start_animation(self):
         if self.is_expanded:
             self.is_expanded = False
             self.update_instruction_rect()
-            self.animation.setStartValue(
-                QRectF(10, 10, self.full_width, self.full_height)
-            )
-            self.animation.setEndValue(
-                QRectF(10, 10, self.small_width, self.small_height)
-            )
+            self.animation.setStartValue(QRectF(10, 10, self.full_width, self.full_height))
+            self.animation.setEndValue(QRectF(10, 10, self.small_width, self.small_height))
             self.animation.start()
 
     def expand_instruction_rect(self):
@@ -1949,10 +1877,9 @@ class CustomGraphicsView(QGraphicsView):
         self.viewport().update()
 
     def mousePressEvent(self, event):
-        if (
-            event.button() == Qt.MouseButton.LeftButton
-            and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
-        ) or (event.button() == Qt.MouseButton.MiddleButton):
+        if (event.button() == Qt.MouseButton.LeftButton and event.modifiers() & Qt.KeyboardModifier.ShiftModifier) or (
+            event.button() == Qt.MouseButton.MiddleButton
+        ):
             self.is_selecting = True
             self.origin = event.pos()
             if not self.rubberBand:
@@ -1984,18 +1911,13 @@ class CustomGraphicsView(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         if self.is_selecting and (
-            (
-                event.button() == Qt.MouseButton.LeftButton
-                and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
-            )
+            (event.button() == Qt.MouseButton.LeftButton and event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
             or (event.button() == Qt.MouseButton.MiddleButton)
         ):
             self.is_selecting = False
             if self.rubberBand:
                 self.rubberBand.hide()
-                selection_rect = self.mapToScene(
-                    self.rubberBand.geometry()
-                ).boundingRect()
+                selection_rect = self.mapToScene(self.rubberBand.geometry()).boundingRect()
                 self.zoom_to_rect(selection_rect)
         else:
             super().mouseReleaseEvent(event)
@@ -2025,10 +1947,7 @@ class CustomGraphicsView(QGraphicsView):
         self.zoomChanged.emit(current_scale)
 
         # Update scrollbar value
-        scrollbar_value = int(
-            ((self.current_zoom - self.min_zoom) / (self.max_zoom - self.min_zoom))
-            * 100
-        )
+        scrollbar_value = int(((self.current_zoom - self.min_zoom) / (self.max_zoom - self.min_zoom)) * 100)
         self.zoom_scrollbar.setValue(scrollbar_value)
 
     def wheelEvent(self, event):
@@ -2036,10 +1955,7 @@ class CustomGraphicsView(QGraphicsView):
             zoom_in_factor = 1.2
             zoom_out_factor = 1 / zoom_in_factor
 
-            if event.angleDelta().y() > 0:
-                zoom_factor = zoom_in_factor
-            else:
-                zoom_factor = zoom_out_factor
+            zoom_factor = zoom_in_factor if event.angleDelta().y() > 0 else zoom_out_factor
 
             resulting_zoom = self.current_zoom * zoom_factor
             if self.min_zoom <= resulting_zoom <= self.max_zoom:
@@ -2047,13 +1963,7 @@ class CustomGraphicsView(QGraphicsView):
                 self.zoom_to(self.current_zoom)
 
                 # Update scrollbar value
-                scrollbar_value = int(
-                    (
-                        (self.current_zoom - self.min_zoom)
-                        / (self.max_zoom - self.min_zoom)
-                    )
-                    * 100
-                )
+                scrollbar_value = int(((self.current_zoom - self.min_zoom) / (self.max_zoom - self.min_zoom)) * 100)
                 self.zoom_scrollbar.setValue(scrollbar_value)
         else:
             super().wheelEvent(event)
@@ -2089,19 +1999,13 @@ class GraphicsScene(QGraphicsScene):
         self.update_timer.start(100)
 
     def mousePressEvent(self, event):
-        if (
-            event.button() == Qt.MouseButton.LeftButton
-            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-        ):
+        if event.button() == Qt.MouseButton.LeftButton and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.create_new_form(event.scenePos())
         else:
             super().mousePressEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent):
-        if (
-            event.key() == Qt.Key.Key_I
-            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-        ):
+        if event.key() == Qt.Key.Key_I and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             view = self.views()[0]
             center = view.mapToScene(view.viewport().rect().center())
             self.create_new_form(center)
@@ -2146,9 +2050,7 @@ class MainWindow(QMainWindow):
 
     def export_to_markdown(self):
         """Export all chat content to a markdown file."""
-        file_name, _ = QFileDialog.getSaveFileName(
-            self, "Export to Markdown", "", "Markdown Files (*.md)"
-        )
+        file_name, _ = QFileDialog.getSaveFileName(self, "Export to Markdown", "", "Markdown Files (*.md)")
 
         if not file_name:
             return
@@ -2162,7 +2064,7 @@ class MainWindow(QMainWindow):
 
         # Write to file
         try:
-            with open(file_name, "w", encoding="utf-8") as f:
+            with Path(file_name).open("w", encoding="utf-8") as f:
                 f.write("\n\n".join(markdown_content))
 
             QMessageBox.information(
@@ -2171,9 +2073,7 @@ class MainWindow(QMainWindow):
                 f"Chat content has been exported to {file_name}",
             )
         except Exception as e:
-            QMessageBox.critical(
-                self, "Export Failed", f"Failed to export chat content: {str(e)}"
-            )
+            QMessageBox.critical(self, "Export Failed", f"Failed to export chat content: {e!s}")
 
     def update_scene_rect(self):
         self.scene.apply_expansion_recursively(True)
@@ -2287,15 +2187,11 @@ class MainWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.jina_api_key = dialog.get_jina_api_key()
             self.state_manager.save_jina_api_key(self.jina_api_key)
-            QMessageBox.information(
-                self, "Configuration", "Jina API Key saved successfully!"
-            )
+            QMessageBox.information(self, "Configuration", "Jina API Key saved successfully!")
 
     def export_to_png(self):
         """Export the entire canvas as a high-quality PNG image."""
-        file_name, _ = QFileDialog.getSaveFileName(
-            self, "Export to PNG", "", "PNG Files (*.png)"
-        )
+        file_name, _ = QFileDialog.getSaveFileName(self, "Export to PNG", "", "PNG Files (*.png)")
 
         if not file_name:
             return
@@ -2313,18 +2209,12 @@ class MainWindow(QMainWindow):
 
         # Save the image
         if image.save(file_name, "PNG", 100):
-            QMessageBox.information(
-                self, "Export Successful", f"Canvas has been exported to {file_name}"
-            )
+            QMessageBox.information(self, "Export Successful", f"Canvas has been exported to {file_name}")
         else:
-            QMessageBox.critical(
-                self, "Export Failed", "Failed to export canvas to PNG."
-            )
+            QMessageBox.critical(self, "Export Failed", "Failed to export canvas to PNG.")
 
     def export_to_json_canvas(self):
-        file_name, _ = QFileDialog.getSaveFileName(
-            self, "Export to JSON Canvas", "", "Canvas Files (*.canvas)"
-        )
+        file_name, _ = QFileDialog.getSaveFileName(self, "Export to JSON Canvas", "", "Canvas Files (*.canvas)")
         if not file_name:
             return
 
@@ -2339,9 +2229,7 @@ class MainWindow(QMainWindow):
     def save_state(self):
         file_name = self.state_manager.get_last_file()
         if not file_name:
-            file_name, _ = QFileDialog.getSaveFileName(
-                self, "Save File", "", "JSON Files (*.json)"
-            )
+            file_name, _ = QFileDialog.getSaveFileName(self, "Save File", "", "JSON Files (*.json)")
 
         if not file_name:
             return
@@ -2351,26 +2239,24 @@ class MainWindow(QMainWindow):
             if isinstance(item, FormWidget) and not item.parent_form:
                 states.append(item.to_dict())
 
-        document_data = dict(zoom_factor=self.zoom_factor, canvas_state=states)
-        with open(file_name, "w") as f:
+        document_data = {"zoom_factor": self.zoom_factor, "canvas_state": states}
+        with Path(file_name).open("w") as f:
             json.dump(document_data, f, indent=2)
 
         self.setWindowTitle(f"{APPLICATION_TITLE} - {file_name}")
         self.state_manager.save_last_file(file_name)
 
     def load_state(self):
-        file_name, _ = QFileDialog.getOpenFileName(
-            self, "Open File", "", "JSON Files (*.json)"
-        )
-        if os.path.exists(file_name):
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open File", "", "JSON Files (*.json)")
+        if Path(file_name).exists():
             self.state_manager.save_last_file(file_name)
             self.load_from_file(file_name)
         else:
             print(f"File {file_name} not found.")
 
     def load_from_file(self, file_name):
-        if os.path.exists(file_name):
-            with open(file_name) as f:
+        if Path(file_name).exists():
+            with Path(file_name).open() as f:
                 document_data = json.load(f)
         else:
             raise LookupError(f"Unable to find file {file_name}")
@@ -2420,12 +2306,10 @@ class MainWindow(QMainWindow):
             self.showMaximized()
 
         file_name = self.state_manager.get_last_file()
-        if file_name and isinstance(file_name, str) and os.path.exists(file_name):
+        if file_name and isinstance(file_name, str) and Path(file_name).exists():
             self.load_from_file(file_name)
         else:
-            QMessageBox.warning(
-                self, "Error", f"Failed to load the last file: {file_name}"
-            )
+            QMessageBox.warning(self, "Error", f"Failed to load the last file: {file_name}")
 
     def closeEvent(self, event):
         self.state_manager.save_window_state(self)
@@ -2433,9 +2317,13 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
 
-if __name__ == "__main__":
+def main():
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(resource_path("resources/icon.png")))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

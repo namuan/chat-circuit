@@ -9,14 +9,14 @@ block_cipher = None
 site_packages = site.getsitepackages()[0]
 
 # Construct the path to the tokenizer file
-tokenizer_path = os.path.join(site_packages, 'litellm', 'llms', 'tokenizers', 'anthropic_tokenizer.json')
+tokenizer_path = os.path.join(site_packages, 'litellm', 'litellm_core_utils', 'tokenizers', 'anthropic_tokenizer.json')
 
-a = Analysis(['app.py'],
+a = Analysis(['main.py'],
              pathex=['.'],
              binaries=None,
              datas=[
                   ('resources', 'resources'),
-                  (tokenizer_path, 'litellm/llms/tokenizers'),
+                  (tokenizer_path, 'litellm/litellm_core_utils/tokenizers'),
                   ('models.conf', '.')
               ],
              hiddenimports=['tiktoken_ext.openai_public', 'tiktoken_ext'],

@@ -53,12 +53,6 @@ It is possible to re-run all the nodes in a branch after changing the prompt it 
 
 To run this application, follow these steps:
 
-**Generate models configuration file**
-
-```shell
-ollama list | tail -n +2 | awk '{print $1}' > models.conf
-```
-
 **Install dependencies**
 
 ```shell

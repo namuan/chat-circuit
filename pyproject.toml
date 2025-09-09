@@ -1,0 +1,123 @@
+[project]
+name = "chat-circuit"
+version = "0.0.1"
+description = "Branch out your conversations"
+authors = [{ name = "Namuan", email = "namuan@deskriders.dev" }]
+readme = "README.md"
+keywords = ['python', 'annotation', 'screen', 'macos']
+requires-python = ">=3.11,<4.0"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS",
+    "Operating System :: MacOS :: MacOS X",
+    "Topic :: Multimedia :: Graphics :: Capture :: Screen Capture",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "PyQt6",
+    "mistune",
+    "litellm",
+    "keyring",
+    "requests",
+    "duckduckgo_search",
+]
+
+[project.urls]
+Homepage = "https://github.com/namuan/chat-circuit"
+Repository = "https://github.com/namuan/chat-circuit"
+Documentation = "https://github.com/namuan/chat-circuit"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+    "pre-commit",
+    "tox-uv",
+    "ruff",
+    "pyinstaller",
+    "vulture",
+    "autoflake",
+    "pyupgrade",
+]
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+fix = true
+
+[tool.ruff.lint]
+select = [
+    # flake8-2020
+    "YTT",
+    # flake8-bandit
+    "S",
+    # flake8-bugbear
+    "B",
+    # flake8-builtins
+    "A",
+    "G",
+    # flake8-comprehensions
+    "C4",
+    # flake8-debugger
+    "T10",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # mccabe
+    "C90",
+    # pycodestyle
+    "E", "W",
+    # pyflakes
+    "F",
+    # pygrep-hooks
+    "PGH",
+    # pyupgrade
+    "UP",
+    # ruff
+    "RUF",
+    # tryceratops
+    "TRY",
+    # Use pathlib instead of os.path
+    "PTH",
+    # Use common import conventions
+    "ICN",
+    # Good return practices
+    "RET",
+    # Some good import practices
+    "TID",
+]
+ignore = [
+    # LineTooLong
+    "E501",
+    # DoNotAssignLambda
+    "E731",
+    "TRY003",
+    "TRY300",
+    "TRY301",
+    "E741",
+    "S311",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.ruff.format]
+preview = true
+
+[project.scripts]
+chat-circuit = "main:main"

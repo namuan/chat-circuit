@@ -1,9 +1,0 @@
--r requirements.txt
-pre-commit
-autoflake
-pyupgrade
-pyinstaller
-# Testing
-pytest
-pytest-qt
-pytest-mock

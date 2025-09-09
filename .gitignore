@@ -15,11 +15,11 @@
 !Makefile
 !.pre-commit-config.yaml
 !.editorconfig
-!app.py
-!app.spec
+!main.py
+!main.spec
 !models.conf.example
-!requirements.txt
-!requirements-dev.txt
 !LICENSE
+!.pre-commit-config.yaml
+!install.command
 
 __pycache__
