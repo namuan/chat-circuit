@@ -22,5 +22,6 @@
 !LICENSE
 !.pre-commit-config.yaml
 !install.command
+!setup_launcher.sh
 
 __pycache__

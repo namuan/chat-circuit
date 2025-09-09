@@ -50,6 +50,7 @@ context: clean ## Build context file from application sources
 
 package: clean ## Run installer
 	@uv run pyinstaller main.spec --clean
+	@./setup_launcher.sh
 
 install-macosx: package ## Installs application in users Application folder
 	./scripts/install-macosx.sh ChatCircuit.app
