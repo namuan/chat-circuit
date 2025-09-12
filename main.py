@@ -6,7 +6,6 @@ import math
 import os
 import platform
 import random
-import re
 import sys
 import uuid
 from abc import ABC, abstractmethod
@@ -14,9 +13,7 @@ from collections import deque
 from os import linesep
 from pathlib import Path
 
-import keyring
 import mistune
-import requests
 from duckduckgo_search import DDGS
 from litellm import completion
 from PyQt6.QtCore import (
@@ -1105,34 +1102,6 @@ class SearchWorker(QRunnable):
             self.logger.debug("Search worker execution completed")
 
 
-class JinaReaderWorkerSignals(QObject):
-    result = pyqtSignal(str)
-    error = pyqtSignal(str)
-
-
-class JinaReaderWorker(QRunnable):
-    def __init__(self, url, jina_api_key):
-        super().__init__()
-        self.url = url
-        self.jina_api_key = jina_api_key
-        self.signals = JinaReaderWorkerSignals()
-
-    def run(self):
-        try:
-            jina_url = f"https://r.jina.ai/{self.url}"
-            headers = {
-                "Authorization": f"Bearer {self.jina_api_key}",
-                "x-engine": "readerlm-v2",
-            }
-            response = requests.get(jina_url, headers=headers, timeout=30)
-            response.raise_for_status()
-
-            content = response.text
-            self.signals.result.emit(content)
-        except Exception as e:
-            self.signals.error.emit(str(e))
-
-
 class ResizeHandle(QGraphicsWidget):
     resize_signal = pyqtSignal(QPointF)
 
@@ -1204,7 +1173,6 @@ class FormWidget(QGraphicsWidget):
 
         # Re-Run all form nodes
         self.llm_worker = None
-        self.jina_worker = None
         self.form_chain = deque()
 
         # Create main layout
@@ -1643,32 +1611,7 @@ class FormWidget(QGraphicsWidget):
         if not input_text:
             return
 
-        # Check if the input is a URL
-        url_pattern = re.compile(r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+")
-        if url_pattern.match(input_text):
-            self.fetch_jina_reader_content(input_text)
-        else:
-            self.process_llm_request(input_text)
-
-    def fetch_jina_reader_content(self, url):
-        main_window = self.scene().views()[0].window()
-        jina_api_key = main_window.jina_api_key
-
-        self.jina_worker = JinaReaderWorker(url, jina_api_key)
-        self.jina_worker.signals.result.connect(self.handle_jina_reader_content)
-        self.jina_worker.signals.error.connect(self.handle_error)
-
-        self.highlight_hierarchy()
-        thread_pool.start(self.jina_worker)
-        self.start_processing()
-
-    def handle_jina_reader_content(self, content):
-        context_with_prompt = f"""
-        Summarize the following content:
-        {content}
-        """
-        context_data = [{"role": "user", "content": context_with_prompt}]
-        self.setup_llm_worker(context_data, update_handler=self.handle_update)
+        self.process_llm_request(input_text)
 
     def process_llm_request(self, input_text):
         self.logger.info("Processing LLM request with model: %s", self.model)
@@ -1945,15 +1888,6 @@ class ConfigDialog(QDialog):
 
         self.logger.info("Configuration dialog initialized successfully")
 
-    def get_jina_api_key(self):
-        api_key = self.api_key_input.text()
-        self.logger.debug("Retrieved Jina API key from dialog: %s", "[SET]" if api_key else "[EMPTY]")
-        return api_key
-
-    def set_jina_api_key(self, jina_api_key):
-        self.logger.debug("Setting Jina API key in dialog: %s", "[SET]" if jina_api_key else "[EMPTY]")
-        self.api_key_input.setText(jina_api_key)
-
 
 class StateManager:
     def __init__(self, company, application):
@@ -2014,33 +1948,6 @@ class StateManager:
             self.logger.info("Application settings cleared successfully")
         except Exception:
             self.logger.exception("Failed to clear settings: %s")
-            raise
-
-    def save_jina_api_key(self, jina_api_key):
-        self.logger.debug("Saving Jina API key to keyring")
-        try:
-            keyring.set_password(self.keyring_service, "jina_api_key", jina_api_key)
-            self.logger.info("Jina API key saved successfully to keyring")
-        except Exception:
-            self.logger.exception("Failed to save Jina API key: %s")
-            raise
-
-    def get_jina_api_key(self):
-        try:
-            api_key = keyring.get_password(self.keyring_service, "jina_api_key") or ""
-            self.logger.debug("Retrieved Jina API key from keyring: %s", "[SET]" if api_key else "[NOT SET]")
-            return api_key
-        except Exception:
-            self.logger.exception("Failed to get Jina API key: %s")
-            return ""
-
-    def clear_jina_api_key(self):
-        self.logger.info("Clearing Jina API key from keyring")
-        try:
-            keyring.delete_password(self.keyring_service, "jina_api_key")
-            self.logger.info("Jina API key cleared successfully from keyring")
-        except Exception:
-            self.logger.exception("Failed to clear Jina API key: %s")
             raise
 
 
@@ -2447,8 +2354,6 @@ class MainWindow(QMainWindow):
 
         self.is_updating_scene_rect = False
 
-        self.jina_api_key = self.state_manager.get_jina_api_key()
-
         if auto_load_state:
             self.restore_application_state()
 
@@ -2595,33 +2500,9 @@ class MainWindow(QMainWindow):
 
         config_menu = self.menuBar().addMenu("Configuration")
 
-        api_config_action = QAction("API Configuration", self)
-        api_config_action.triggered.connect(self.show_config_dialog)
-        config_menu.addAction(api_config_action)
-
-        config_menu.addSeparator()
-
         open_logs_action = QAction("Open Log Directory", self)
         open_logs_action.triggered.connect(self.open_log_directory)
         config_menu.addAction(open_logs_action)
-
-    def show_config_dialog(self):
-        self.logger.info("Opening configuration dialog")
-        try:
-            dialog = ConfigDialog(self)
-            dialog.set_jina_api_key(self.jina_api_key)
-
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                self.logger.info("Configuration dialog accepted, saving settings")
-                self.jina_api_key = dialog.get_jina_api_key()
-                self.state_manager.save_jina_api_key(self.jina_api_key)
-                self.logger.info("Configuration saved successfully")
-                QMessageBox.information(self, "Configuration", "Jina API Key saved successfully!")
-            else:
-                self.logger.info("Configuration dialog cancelled by user")
-        except Exception as e:
-            self.logger.exception("Error in configuration dialog: %s")
-            QMessageBox.critical(self, "Configuration Error", f"Failed to save configuration: {e}")
 
     def open_log_directory(self):
         """Open the log directory in the system's file manager."""

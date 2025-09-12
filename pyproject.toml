@@ -22,10 +22,9 @@ dependencies = [
     "PyQt6",
     "mistune",
     "litellm",
-    "keyring",
     "requests",
     "duckduckgo_search",
-    "pyqt6-qt6>=6.9.2",
+    "pyqt6-qt6",
 ]
 
 [project.urls]
