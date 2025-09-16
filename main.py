@@ -2337,6 +2337,253 @@ class GraphicsScene(QGraphicsScene):
             raise
 
 
+class WindowArrangementManager:
+    """
+    Provides layout algorithms to arrange FormWidget items in the scene.
+    Initial algorithm: simple grid layout with configurable spacing.
+    """
+
+    def __init__(
+        self, scene: GraphicsScene, horizontal_spacing: float = 120.0, vertical_spacing: float = 90.0, columns: int = 4
+    ):
+        self.scene = scene
+        self.horizontal_spacing = horizontal_spacing
+        self.vertical_spacing = vertical_spacing
+        self.columns = max(1, columns)
+        self.logger = get_logger("arrangement")
+
+    def _collect_forms(self) -> list["FormWidget"]:
+        forms: list[FormWidget] = []
+        for item in self.scene.items():
+            if isinstance(item, FormWidget):
+                forms.append(item)
+        self.logger.debug("Collected %d forms for arrangement", len(forms))
+        return list(reversed(forms))
+
+    def arrange_grid(self, origin: QPointF | None = None) -> None:
+        forms = self._collect_forms()
+        if not forms:
+            self.logger.info("No forms to arrange")
+            return
+
+        if origin is None:
+            bounds = self.scene.itemsBoundingRect()
+            origin = QPointF(bounds.left(), bounds.top())
+        self.logger.info(
+            "Arranging %d forms starting at origin (%.1f, %.1f) with %d columns",
+            len(forms),
+            origin.x(),
+            origin.y(),
+            self.columns,
+        )
+
+        x = origin.x()
+        y = origin.y()
+        max_row_height = 0.0
+        col_index = 0
+
+        for form in forms:
+            rect: QRectF = form.boundingRect()
+            form_width = rect.width()
+            form_height = rect.height()
+
+            target = QPointF(x, y)
+            self._move_form(form, target)
+
+            max_row_height = max(max_row_height, form_height)
+            col_index += 1
+
+            if col_index >= self.columns:
+                col_index = 0
+                x = origin.x()
+                y += max_row_height + self.vertical_spacing
+                max_row_height = 0.0
+            else:
+                x += form_width + self.horizontal_spacing
+
+        self.scene.itemMoved.emit()
+        self.logger.info("Grid arrangement complete")
+
+    def detect_overlaps(self) -> list[tuple["FormWidget", "FormWidget", QRectF]]:
+        """Return list of (a, b, overlap_rect) for overlapping form pairs using sceneBoundingRect()."""
+        forms = self._collect_forms()
+        overlaps: list[tuple[FormWidget, FormWidget, QRectF]] = []
+        n = len(forms)
+        for i in range(n):
+            rect_i = forms[i].sceneBoundingRect()
+            for j in range(i + 1, n):
+                rect_j = forms[j].sceneBoundingRect()
+                if rect_i.intersects(rect_j):
+                    overlap = rect_i.intersected(rect_j)
+                    overlaps.append((forms[i], forms[j], overlap))
+        self.logger.info("Detected %d overlapping pairs", len(overlaps))
+        return overlaps
+
+    def resolve_overlaps_simple(self) -> int:
+        """Naive resolver: for each overlapping pair, push the later form to the right by horizontal_spacing."""
+        overlaps = self.detect_overlaps()
+        moved = 0
+        for _a, b, _ in overlaps:
+            pos = b.pos()
+            new_pos = QPointF(pos.x() + self.horizontal_spacing, pos.y())
+            self._move_form(b, new_pos)
+            moved += 1
+        if moved:
+            self.scene.itemMoved.emit()
+        self.logger.info("Resolved overlaps with %d moves", moved)
+        return moved
+
+    def arrange_tree(self, origin: QPointF | None = None) -> None:
+        """Arrange forms hierarchically based on parent/child relationships.
+        - Roots (forms without parent_form) are laid out left-to-right.
+        - Each subtree is centered over its children, with configurable spacing.
+        """
+        all_forms = self._collect_forms()
+        if not all_forms:
+            self.logger.info("No forms to arrange (tree)")
+            return
+
+        roots = self._get_roots()
+        if not roots:
+            self.logger.warning("No explicit roots found; falling back to arranging all forms as roots")
+            roots = all_forms
+
+        origin_pt = self._compute_origin(origin)
+        self.logger.info(
+            "Arranging %d root(s) in tree layout starting at origin (%.1f, %.1f) with spacing h=%.1f, v=%.1f",
+            len(roots),
+            origin_pt.x(),
+            origin_pt.y(),
+            self.horizontal_spacing,
+            self.vertical_spacing,
+        )
+
+        self._layout_roots(roots, origin_pt)
+        self._update_links_for_roots(roots)
+
+        self.scene.itemMoved.emit()
+        self.logger.info("Tree arrangement complete")
+
+    def _compute_origin(self, origin: QPointF | None) -> QPointF:
+        """Compute a starting origin for layouts from the scene bounds if origin is None."""
+        if origin is not None:
+            return origin
+        bounds = self.scene.itemsBoundingRect()
+        computed = QPointF(bounds.left(), bounds.top())
+        self.logger.debug(
+            "Computed tree layout origin from scene bounds: (%.1f, %.1f)",
+            computed.x(),
+            computed.y(),
+        )
+        return computed
+
+    def _subtree_width(self, form: "FormWidget", cache: dict["FormWidget", float]) -> float:
+        """Compute and cache subtree width for centering parents over children."""
+        if form in cache:
+            return cache[form]
+        rect: QRectF = form.boundingRect()
+        children = getattr(form, "child_forms", [])
+        if not children:
+            width = rect.width()
+            cache[form] = width
+            return width
+        widths = [self._subtree_width(child, cache) for child in children]
+        total_children_width = sum(widths)
+        total_spacing = self.horizontal_spacing * max(0, len(children) - 1)
+        width = max(rect.width(), total_children_width + total_spacing)
+        cache[form] = width
+        self.logger.debug(
+            "Computed subtree width for form id=%s -> %.1f",
+            getattr(form, "id", "n/a"),
+            width,
+        )
+        return width
+
+    def _layout_subtree(
+        self,
+        form: "FormWidget",
+        left_x: float,
+        top_y: float,
+        cache: dict["FormWidget", float],
+    ) -> float:
+        """Lay out subtree with its left bound at left_x and top at top_y.
+        Returns the total width of the laid out subtree for chaining siblings.
+        """
+        rect: QRectF = form.boundingRect()
+        width_here = self._subtree_width(form, cache)
+        # Center the form horizontally within its subtree width
+        form_x = left_x + (width_here - rect.width()) / 2.0
+        form_y = top_y
+        self._move_form(form, QPointF(form_x, form_y))
+
+        # Lay out children directly below
+        children = getattr(form, "child_forms", [])
+        if children:
+            # Compute starting x for the first child so that children block is centered under parent
+            child_left = left_x
+            child_top = top_y + rect.height() + self.vertical_spacing
+            for child in children:
+                cw = self._subtree_width(child, cache)
+                self._layout_subtree(child, child_left, child_top, cache)
+                child_left += cw + self.horizontal_spacing
+        return width_here
+
+    def _layout_roots(self, roots: list["FormWidget"], origin: QPointF) -> None:
+        """Lay out root forms from left to right using cached subtree widths."""
+        cursor_x = origin.x()
+        base_y = origin.y()
+        cache: dict[FormWidget, float] = {}
+        for i, root in enumerate(roots):
+            try:
+                w = self._layout_subtree(root, cursor_x, base_y, cache)
+                self.logger.debug(
+                    "Laid out root %d (id=%s) with subtree width %.1f at x=%.1f",
+                    i,
+                    getattr(root, "id", "n/a"),
+                    w,
+                    cursor_x,
+                )
+                cursor_x += w + self.horizontal_spacing
+            except Exception:
+                self.logger.exception("Failed laying out subtree for a root form")
+
+    def _update_links_for_roots(self, roots: list["FormWidget"]) -> None:
+        """After moving forms, refresh their link lines top-down for visual correctness."""
+        for root in roots:
+            try:
+                root.update_link_lines()
+            except Exception:
+                self.logger.exception(
+                    "Failed to update link lines for root id=%s",
+                    getattr(root, "id", "n/a"),
+                )
+
+    def _get_roots(self) -> list["FormWidget"]:
+        """Return forms without a parent_form as roots."""
+        roots: list[FormWidget] = []
+        for item in self.scene.items():
+            if isinstance(item, FormWidget) and not getattr(item, "parent_form", None):
+                roots.append(item)
+        self.logger.debug("Identified %d root forms", len(roots))
+        # Use stable ordering similar to _collect_forms (reverse scene order)
+        return list(reversed(roots))
+
+    def _move_form(self, form: "FormWidget", pos: QPointF) -> None:
+        try:
+            prev = form.pos()
+            form.setPos(pos)
+            self.logger.debug(
+                "Moved form id=%s from (%.1f, %.1f) to (%.1f, %.1f)",
+                getattr(form, "id", "n/a"),
+                prev.x(),
+                prev.y(),
+                pos.x(),
+                pos.y(),
+            )
+        except Exception:
+            self.logger.exception("Failed to move form during arrangement")
+
+
 class MainWindow(QMainWindow):
     def __init__(self, auto_load_state=True):
         super().__init__()
@@ -2498,6 +2745,14 @@ class MainWindow(QMainWindow):
         fit_scene_action.triggered.connect(self.update_scene_rect)
         view_menu.addAction(fit_scene_action)
 
+        # Layout menu
+        layout_menu = self.menuBar().addMenu("Layout")
+
+        arrange_tree_action = QAction("Arrange Tree", self)
+        arrange_tree_action.setShortcut(QKeySequence("Ctrl+T"))
+        arrange_tree_action.triggered.connect(self.on_arrange_tree)
+        layout_menu.addAction(arrange_tree_action)
+
         config_menu = self.menuBar().addMenu("Configuration")
 
         open_logs_action = QAction("Open Log Directory", self)
@@ -2533,6 +2788,12 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.logger.exception("Failed to open log directory: %s")
             QMessageBox.critical(self, "Error", f"Failed to open log directory:\n{e}")
+
+    def on_arrange_tree(self):
+        self.logger.info("MainWindow.on_arrange_tree: arranging forms in tree layout")
+        manager = WindowArrangementManager(self.scene)
+        manager.arrange_tree()
+        self.update_scene_rect()
 
     def export_to_png(self):
         """Export the entire canvas as a high-quality PNG image."""
