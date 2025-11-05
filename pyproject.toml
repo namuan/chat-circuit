@@ -32,8 +32,8 @@ Homepage = "https://github.com/namuan/chat-circuit"
 Repository = "https://github.com/namuan/chat-circuit"
 Documentation = "https://github.com/namuan/chat-circuit"
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest",
     "pre-commit",
     "tox-uv",
