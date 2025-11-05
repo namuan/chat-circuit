@@ -2594,6 +2594,20 @@ class MainWindow(QMainWindow):
         self.scene = GraphicsScene()
         self.view = CustomGraphicsView(self.scene, initial_zoom=1.0)
         self.view.zoomChanged.connect(self.on_zoom_changed)
+        # Auto-expansion settings
+        self.edge_expand_threshold = 120  # Pixels from viewport edge to trigger expansion
+        self.edge_expand_step = 800  # Pixels to expand per triggered edge
+
+        # React to item movement/addition to keep viewport roomy near edges
+        try:
+            self.scene.itemMoved.connect(self.on_scene_item_moved)
+            self.logger.debug(
+                "Connected scene signals for edge-based viewport expansion (threshold=%d, step=%d)",
+                self.edge_expand_threshold,
+                self.edge_expand_step,
+            )
+        except Exception:
+            self.logger.exception("Failed to connect scene signals for viewport expansion")
         self.setCentralWidget(self.view)
 
         self.zoom_factor = 1.0
@@ -2666,6 +2680,78 @@ class MainWindow(QMainWindow):
         self.view.updateSceneRect(new_rect)
 
         self.is_updating_scene_rect = False
+
+    def on_scene_item_moved(self):
+        """Auto-expand the scene rect when any FormWidget nears the viewport edges.
+
+        This keeps dragging smooth by growing available space proactively.
+        """
+        try:
+            if self.is_updating_scene_rect:
+                return
+
+            # Only react during active drag operations to avoid expanding on load
+            try:
+                if not (QApplication.mouseButtons() & Qt.MouseButton.LeftButton):
+                    return
+            except Exception:
+                # Log and avoid expanding if we cannot inspect mouse state
+                self.logger.exception("Failed to read mouse buttons")
+                return
+
+            visible_rect = self.view.mapToScene(self.view.viewport().rect()).boundingRect()
+            current_rect = self.scene.sceneRect()
+
+            rects = [
+                i.mapToScene(i.boundingRect()).boundingRect() for i in self.scene.items() if isinstance(i, FormWidget)
+            ]
+
+            threshold = self.edge_expand_threshold
+            expand_left = any(r.left() < (visible_rect.left() + threshold) for r in rects)
+            expand_top = any(r.top() < (visible_rect.top() + threshold) for r in rects)
+            expand_right = any(r.right() > (visible_rect.right() - threshold) for r in rects)
+            expand_bottom = any(r.bottom() > (visible_rect.bottom() - threshold) for r in rects)
+
+            if not (expand_left or expand_top or expand_right or expand_bottom):
+                return
+
+            # Compute new scene rect once based on triggered edges
+            step = self.edge_expand_step
+            new_rect = QRectF(
+                current_rect.left() - (step if expand_left else 0),
+                current_rect.top() - (step if expand_top else 0),
+                current_rect.width() + (step if expand_left else 0) + (step if expand_right else 0),
+                current_rect.height() + (step if expand_top else 0) + (step if expand_bottom else 0),
+            )
+
+            self.logger.info(
+                "Expanding scene rect due to edge proximity: left=%s top=%s right=%s bottom=%s; new=(%.1f,%.1f %.1fx%.1f)",
+                expand_left,
+                expand_top,
+                expand_right,
+                expand_bottom,
+                new_rect.left(),
+                new_rect.top(),
+                new_rect.width(),
+                new_rect.height(),
+            )
+
+            self.is_updating_scene_rect = True
+            self.scene.setSceneRect(new_rect)
+            try:
+                self.view.updateSceneRect(new_rect)
+            except Exception:
+                self.logger.debug("updateSceneRect not available; setSceneRect applied")
+            finally:
+                self.is_updating_scene_rect = False
+
+            # Keep the minimap in sync
+            try:
+                self.view.update_minimap()
+            except Exception:
+                self.logger.debug("Minimap update skipped or failed after scene expansion")
+        except Exception:
+            self.logger.exception("Error during edge-based viewport expansion")
 
     def on_zoom_changed(self, zoom_factor):
         self.zoom_factor = zoom_factor
