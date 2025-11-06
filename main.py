@@ -14,6 +14,7 @@ from os import linesep
 from pathlib import Path
 
 import mistune
+import requests
 from duckduckgo_search import DDGS
 from litellm import completion
 from PyQt6.QtCore import (
@@ -251,6 +252,267 @@ def load_models_from_config(config_file="models.conf"):
 
 LLM_MODELS = load_models_from_config()
 DEFAULT_LLM_MODEL = LLM_MODELS[0]
+
+
+# Provider-aware model resolution helpers
+def resolve_provider(model_str: str) -> str:
+    """
+    Detect provider based on model prefix.
+
+    Expected prefixes:
+    - "ollama_chat/" for Ollama local models
+    - "openrouter/" for OpenRouter models
+
+    Returns: "ollama", "openrouter", or "unknown"
+    """
+    try:
+        if isinstance(model_str, str):
+            if model_str.startswith("ollama_chat/"):
+                return "ollama"
+            if model_str.startswith("openrouter/"):
+                return "openrouter"
+    except Exception:
+        get_logger("provider_resolver").exception("Error resolving provider for model: %s")
+    return "unknown"
+
+
+def strip_provider_prefix(model_str: str) -> str:
+    """
+    Remove known provider prefixes from the model string.
+    If no known prefix is present, return the original string.
+    """
+    try:
+        prefixes = ("ollama_chat/", "openrouter/")
+        for pfx in prefixes:
+            if model_str.startswith(pfx):
+                return model_str[len(pfx) :]
+    except Exception:
+        get_logger("provider_resolver").exception("Error stripping provider prefix for model: %s")
+    return model_str
+
+
+def build_llm_call_config(model_str: str, settings: QSettings | None = None) -> dict:
+    """
+    Build a LiteLLM call configuration based on the provider inferred from the model string.
+
+    - For Ollama: set api_base to local server
+    - For OpenRouter: set api_base to OpenRouter, and include api_key from QSettings or env
+
+    The returned dict is intended to be used with litellm.completion(**config).
+    """
+    logger = get_logger("provider_resolver")
+    provider = resolve_provider(model_str)
+    raw_model = strip_provider_prefix(model_str)
+
+    config: dict = {"model": model_str}
+
+    if provider == "ollama":
+        # Normalize to provider-prefixed form for consistency
+        config["model"] = f"ollama_chat/{raw_model}"
+        config["api_base"] = "http://localhost:11434"
+        logger.debug("Resolved Ollama config for model=%s", raw_model)
+    elif provider == "openrouter":
+        config["model"] = f"openrouter/{raw_model}"
+        config["api_base"] = "https://openrouter.ai/api/v1"
+
+        api_key: str | None = None
+        # Prefer QSettings value if provided
+        if settings is not None:
+            try:
+                val = settings.value("openrouter_api_key")
+                if isinstance(val, str) and val.strip():
+                    api_key = val.strip()
+                    logger.debug("OpenRouter API key fetched from QSettings")
+            except Exception:
+                logger.exception("Failed reading OpenRouter API key from QSettings")
+
+        # Fallback to environment variable
+        if not api_key:
+            env_key = os.getenv("OPENROUTER_API_KEY")
+            if env_key and env_key.strip():
+                api_key = env_key.strip()
+                logger.debug("OpenRouter API key fetched from environment")
+
+        if api_key:
+            config["api_key"] = api_key
+        else:
+            logger.warning("OpenRouter API key not set. Set it in Configuration or via OPENROUTER_API_KEY env.")
+
+        logger.debug("Resolved OpenRouter config for model=%s", raw_model)
+    else:
+        # Default to local Ollama for unknown providers, with warning
+        config["model"] = raw_model
+        config["api_base"] = "http://localhost:11434"
+        logger.warning("Unknown provider for model '%s'. Defaulting to local Ollama.", model_str)
+
+    logger.info(
+        "Provider resolution: provider=%s, raw_model=%s, config_keys=%s", provider, raw_model, list(config.keys())
+    )
+    return config
+
+
+# Startup model preloader (dynamic discovery)
+def _safe_get(json_obj: dict, *keys, default=None):
+    current = json_obj
+    for k in keys:
+        if not isinstance(current, dict) or k not in current:
+            return default
+        current = current[k]
+    return current
+
+
+def discover_ollama_models() -> list[str]:
+    logger = get_logger("model_preloader")
+    base = "http://localhost:11434"
+    tags_url = f"{base}/api/tags"
+    models: list[str] = []
+    try:
+        logger.info("Discovering Ollama models from %s", tags_url)
+        resp = requests.get(tags_url, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("models", [])
+        for item in items:
+            name = item.get("name")
+            if isinstance(name, str) and name.strip():
+                # Prefix with provider
+                models.append(f"ollama_chat/{name.strip()}")
+        logger.info("Discovered %s Ollama models", len(models))
+    except Exception as e:
+        logger.warning("Failed discovering Ollama models: %s", e)
+    return models
+
+
+def _parse_zero_pricing(pricing_obj: dict) -> bool:
+    """
+    Return True if pricing indicates free usage.
+    Attempts to parse typical fields like 'input' and 'output' or 'prompt' and 'completion'.
+    """
+
+    def _to_float(val) -> float:
+        try:
+            if isinstance(val, int | float):
+                return float(val)
+            if isinstance(val, str):
+                return float(val.strip().replace("$", ""))
+        except Exception:
+            return float("inf")
+        return float("inf")
+
+    input_val = _safe_get(pricing_obj, "input") or _safe_get(pricing_obj, "prompt")
+    output_val = _safe_get(pricing_obj, "output") or _safe_get(pricing_obj, "completion")
+    input_cost = _to_float(input_val)
+    output_cost = _to_float(output_val)
+    return input_cost == 0.0 and output_cost == 0.0
+
+
+def _get_openrouter_api_key(settings: QSettings | None) -> str | None:
+    logger = get_logger("model_preloader")
+    try:
+        if settings is not None:
+            val = settings.value("openrouter_api_key")
+            if isinstance(val, str) and val.strip():
+                logger.debug("Using OpenRouter API key from QSettings for model discovery")
+                return val.strip()
+    except Exception:
+        logger.exception("Error reading OpenRouter API key from QSettings during discovery")
+    env_key = os.getenv("OPENROUTER_API_KEY")
+    if env_key and env_key.strip():
+        logger.debug("Using OpenRouter API key from environment for model discovery")
+        return env_key.strip()
+    return None
+
+
+def _filter_free_openrouter_models(items: list[dict]) -> list[str]:
+    count = 0
+    free_models: list[str] = []
+    for item in items:
+        model_id = item.get("id") or item.get("name")
+        if not isinstance(model_id, str) or not model_id.strip():
+            continue
+        pricing = item.get("pricing") or {}
+        is_free_attr = item.get("free")
+        is_free = bool(is_free_attr) if isinstance(is_free_attr, bool) else _parse_zero_pricing(pricing)
+        if is_free:
+            free_models.append(f"openrouter/{model_id.strip()}")
+            count += 1
+    logger = get_logger("model_preloader")
+    logger.info("Discovered %s free OpenRouter models", count)
+    return free_models
+
+
+def discover_openrouter_free_models(settings: QSettings | None = None) -> list[str]:
+    logger = get_logger("model_preloader")
+    url = "https://openrouter.ai/api/v1/models"
+    headers = {}
+    api_key = _get_openrouter_api_key(settings)
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    else:
+        logger.warning("OpenRouter API key not set; discovery may return limited or no results")
+
+    try:
+        logger.info("Discovering OpenRouter models from %s", url)
+        resp = requests.get(url, headers=headers, timeout=7)
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("data") or data.get("models") or []
+        return _filter_free_openrouter_models(items)
+    except Exception as e:
+        logger.warning("Failed discovering OpenRouter models: %s", e)
+        return []
+
+
+def preload_models(settings: QSettings | None = None) -> list[str]:
+    logger = get_logger("model_preloader")
+    logger.info("Starting dynamic model discovery (Ollama + OpenRouter free)")
+    discovered: list[str] = []
+    # Discover from providers
+    ollama = discover_ollama_models()
+    openrouter_free = discover_openrouter_free_models(settings)
+    # Merge and de-duplicate while preserving order (Ollama first)
+    seen = set()
+    for m in ollama + openrouter_free:
+        if m not in seen:
+            discovered.append(m)
+            seen.add(m)
+            seen.add(m)
+
+    # If discovery fails, keep previously loaded models but inform user
+    if not discovered:
+        logger.error("No models discovered dynamically. Please ensure Ollama is running and OpenRouter key is set.")
+        return LLM_MODELS
+
+    logger.info(
+        "Preloader discovered %s models (ollama=%s, openrouter_free=%s)",
+        len(discovered),
+        len(ollama),
+        len(openrouter_free),
+    )
+    return discovered
+
+
+def startup_dynamic_model_init() -> None:
+    """Initialize dynamic model list at application startup with robust logging."""
+    logger = get_logger("main")
+    try:
+        startup_settings = QSettings("deskriders", "chatcircuit")
+    except Exception:
+        logger.exception("Failed to initialize QSettings for preloader; proceeding without settings")
+        startup_settings = None
+
+    try:
+        discovered_models = preload_models(startup_settings)
+        if isinstance(discovered_models, list) and discovered_models:
+            global LLM_MODELS, DEFAULT_LLM_MODEL
+            LLM_MODELS = discovered_models
+            DEFAULT_LLM_MODEL = LLM_MODELS[0]
+            logger.info("LLM models set from dynamic discovery: %s models", len(LLM_MODELS))
+        else:
+            logger.warning("Model preloader returned no models; falling back to config file models")
+    except Exception:
+        logger.exception("Unexpected error during dynamic model preload; using config file models")
+
 
 thread_pool = QThreadPool()
 active_workers = 0
@@ -1046,18 +1308,43 @@ class LlmWorker(QRunnable):
         self.logger.debug("Processing %s messages", len(self.messages))
 
         try:
+            # Prepare messages with system prompt at the front
             formatted_messages = []
             if self.system_message:
                 formatted_messages.append({"role": "system", "content": self.system_message})
             formatted_messages.extend(self.messages)
-
             self.logger.debug("Formatted %s messages for LLM", len(formatted_messages))
 
-            response = completion(
-                model=f"{self.model}",
-                messages=formatted_messages,
-                api_base="http://localhost:11434",
+            # Build provider-aware LiteLLM config
+            try:
+                settings = QSettings("deskriders", "chatcircuit")
+            except Exception:
+                self.logger.exception("Failed to initialize QSettings; proceeding without settings")
+                settings = None
+
+            config = build_llm_call_config(self.model, settings)
+            provider = resolve_provider(self.model)
+            raw_model = strip_provider_prefix(self.model)
+
+            # Log resolved configuration without secrets
+            api_base = config.get("api_base")
+            has_api_key = bool(config.get("api_key"))
+            self.logger.info(
+                "LLM config resolved: provider=%s raw_model=%s api_base=%s api_key_set=%s",
+                provider,
+                raw_model,
+                api_base,
+                has_api_key,
             )
+
+            # Invoke LiteLLM
+            llm_kwargs = {"model": config.get("model", self.model), "api_base": api_base}
+            if has_api_key:
+                llm_kwargs["api_key"] = config.get("api_key")
+            llm_kwargs["messages"] = formatted_messages
+
+            self.logger.debug("Calling litellm.completion with keys=%s", list(llm_kwargs.keys()))
+            response = completion(**llm_kwargs)
 
             content = response.choices[0].message.content
             self.logger.info("LLM response received: %s characters", len(content))
@@ -1721,9 +2008,36 @@ class FormWidget(QGraphicsWidget):
     def handle_error(self, error):
         global active_workers
         active_workers = max(0, active_workers - 1)
+        # Log full error for diagnostics
         self.logger.error("LLM worker error (active workers: %d): %s", active_workers, error)
         self.stop_processing()
-        self.update_answer(f"Error occurred: {error}")
+
+        # Provide friendlier guidance for common OpenRouter privacy errors
+        message = f"Error occurred: {error}"
+        try:
+            err_lower = str(error).lower()
+            if "no endpoints found matching your data policy" in err_lower or (
+                "openrouterexception" in err_lower and "no endpoints" in err_lower
+            ):
+                self.logger.info("Detected OpenRouter privacy routing error; showing guidance")
+                message = (
+                    "OpenRouter routing blocked by your privacy settings.\n\n"
+                    "Fix steps:\n"
+                    "- Open the OpenRouter Privacy Settings: "
+                    "[https://openrouter.ai/settings/privacy](https://openrouter.ai/settings/privacy)\n"
+                    "- For free models: enable 'Enable training and logging (chatroom and API)'.\n"
+                    "- Allow free providers that may publish prompts, if you intend to use :free variants.\n"
+                    "- Disable 'Zero Data Retention endpoints only' if it's restricting routing.\n"
+                    "- Clear any 'Allowed Providers' / 'Ignored Providers' filters that block routing.\n"
+                    "- If using free endpoints, choose a ':free' model variant (e.g., deepseek-chat-v3-0324:free).\n\n"
+                    "Docs: [Privacy & Logging](https://openrouter.ai/docs/features/privacy-and-logging)\n"
+                )
+        except Exception:
+            # Fallback to original error message if formatting fails
+            self.logger.exception("Failed formatting error guidance; showing raw error")
+            message = f"Error occurred: {error}"
+
+        self.update_answer(message)
 
     def update_answer(self, message):
         self.markdown_content = message
@@ -1874,6 +2188,53 @@ class ConfigDialog(QDialog):
         api_key_layout.addWidget(self.api_key_input)
         layout.addLayout(api_key_layout)
 
+        # OpenRouter API Key input
+        openrouter_layout = QHBoxLayout()
+        openrouter_label = QLabel("OpenRouter API Key:")
+        self.openrouter_api_key_input = QLineEdit()
+        self.openrouter_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        openrouter_layout.addWidget(openrouter_label)
+        openrouter_layout.addWidget(self.openrouter_api_key_input)
+        layout.addLayout(openrouter_layout)
+
+        # Prefill values from QSettings or environment
+        try:
+            settings = QSettings("deskriders", "chatcircuit")
+        except Exception:
+            self.logger.exception("Failed to initialize QSettings in ConfigDialog; proceeding without settings")
+            settings = None
+
+        # Prefill OpenRouter API key (QSettings or env)
+        try:
+            openrouter_key = _get_openrouter_api_key(settings)
+            if isinstance(openrouter_key, str) and openrouter_key.strip():
+                self.openrouter_api_key_input.setText(openrouter_key.strip())
+                self.logger.debug("Prefilled OpenRouter API key from %s", "QSettings/env")
+            else:
+                self.logger.info("No OpenRouter API key found in settings or environment for prefill")
+        except Exception:
+            self.logger.exception("Error while pre-filling OpenRouter API key in ConfigDialog")
+
+        # Prefill Jina API key (QSettings or env)
+        try:
+            jina_key = None
+            if settings is not None:
+                val = settings.value("jina_api_key")
+                if isinstance(val, str) and val.strip():
+                    jina_key = val.strip()
+                    self.logger.debug("Prefilled Jina API key from QSettings")
+            if not jina_key:
+                env_jina = os.getenv("JINA_API_KEY")
+                if env_jina and env_jina.strip():
+                    jina_key = env_jina.strip()
+                    self.logger.debug("Prefilled Jina API key from environment")
+            if jina_key:
+                self.api_key_input.setText(jina_key)
+            else:
+                self.logger.info("No Jina API key found in settings or environment for prefill")
+        except Exception:
+            self.logger.exception("Error while pre-filling Jina API key in ConfigDialog")
+
         # Buttons
         button_layout = QHBoxLayout()
         save_button = QPushButton("Save")
@@ -1887,6 +2248,32 @@ class ConfigDialog(QDialog):
         cancel_button.clicked.connect(self.reject)
 
         self.logger.info("Configuration dialog initialized successfully")
+
+    def accept(self):
+        """Save configuration values to QSettings and close the dialog."""
+        self.logger.info("Saving configuration values from ConfigDialog")
+        try:
+            settings = QSettings("deskriders", "chatcircuit")
+        except Exception:
+            self.logger.exception("Failed to initialize QSettings while saving configuration")
+            settings = None
+
+        try:
+            # Save OpenRouter API key
+            openrouter_key = self.openrouter_api_key_input.text().strip()
+            if settings is not None:
+                settings.setValue("openrouter_api_key", openrouter_key)
+                self.logger.info("Saved OpenRouter API key to QSettings (len=%d)", len(openrouter_key))
+
+            # Save Jina API key
+            jina_key = self.api_key_input.text().strip()
+            if settings is not None:
+                settings.setValue("jina_api_key", jina_key)
+                self.logger.info("Saved Jina API key to QSettings (len=%d)", len(jina_key))
+        except Exception:
+            self.logger.exception("Error while saving configuration values to QSettings")
+
+        super().accept()
 
 
 class StateManager:
@@ -2845,6 +3232,12 @@ class MainWindow(QMainWindow):
         open_logs_action.triggered.connect(self.open_log_directory)
         config_menu.addAction(open_logs_action)
 
+        # Open configuration dialog for API keys
+        open_config_action = QAction("API Keys...", self)
+        open_config_action.setShortcut(QKeySequence("Ctrl+,"))
+        open_config_action.triggered.connect(self.open_config_dialog)
+        config_menu.addAction(open_config_action)
+
     def open_log_directory(self):
         """Open the log directory in the system's file manager."""
         self.logger.info("Opening log directory in file manager")
@@ -2874,6 +3267,20 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.logger.exception("Failed to open log directory: %s")
             QMessageBox.critical(self, "Error", f"Failed to open log directory:\n{e}")
+
+    def open_config_dialog(self):
+        """Open the configuration dialog to edit API keys and settings."""
+        self.logger.info("Opening ConfigDialog from MainWindow")
+        try:
+            dlg = ConfigDialog(self)
+            result = dlg.exec()
+            self.logger.info("ConfigDialog closed with result=%s", result)
+            if result == QDialog.DialogCode.Accepted:
+                self.logger.info("ConfigDialog accepted; settings saved")
+            else:
+                self.logger.info("ConfigDialog rejected or closed without saving")
+        except Exception:
+            self.logger.exception("Error while opening ConfigDialog")
 
     def on_arrange_tree(self):
         self.logger.info("MainWindow.on_arrange_tree: arranging forms in tree layout")
@@ -3080,6 +3487,9 @@ class MainWindow(QMainWindow):
 def main():
     logger.info("Starting %s application", APPLICATION_TITLE)
     app = QApplication(sys.argv)
+
+    # Preload models dynamically before any windows/forms are created
+    startup_dynamic_model_init()
 
     # Try to set the application icon, but don't fail if it's not available
     try:
