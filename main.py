@@ -2235,15 +2235,6 @@ class ConfigDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # Jina API Key input
-        api_key_layout = QHBoxLayout()
-        api_key_label = QLabel("Jina API Key:")
-        self.api_key_input = QLineEdit()
-        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        api_key_layout.addWidget(api_key_label)
-        api_key_layout.addWidget(self.api_key_input)
-        layout.addLayout(api_key_layout)
-
         # OpenRouter API Key input
         openrouter_layout = QHBoxLayout()
         openrouter_label = QLabel("OpenRouter API Key:")
@@ -2270,26 +2261,6 @@ class ConfigDialog(QDialog):
                 self.logger.info("No OpenRouter API key found in settings or environment for prefill")
         except Exception:
             self.logger.exception("Error while pre-filling OpenRouter API key in ConfigDialog")
-
-        # Prefill Jina API key (QSettings or env)
-        try:
-            jina_key = None
-            if settings is not None:
-                val = settings.value("jina_api_key")
-                if isinstance(val, str) and val.strip():
-                    jina_key = val.strip()
-                    self.logger.debug("Prefilled Jina API key from QSettings")
-            if not jina_key:
-                env_jina = os.getenv("JINA_API_KEY")
-                if env_jina and env_jina.strip():
-                    jina_key = env_jina.strip()
-                    self.logger.debug("Prefilled Jina API key from environment")
-            if jina_key:
-                self.api_key_input.setText(jina_key)
-            else:
-                self.logger.info("No Jina API key found in settings or environment for prefill")
-        except Exception:
-            self.logger.exception("Error while pre-filling Jina API key in ConfigDialog")
 
         # Buttons
         button_layout = QHBoxLayout()
@@ -2320,12 +2291,6 @@ class ConfigDialog(QDialog):
             if settings is not None:
                 settings.setValue("openrouter_api_key", openrouter_key)
                 self.logger.info("Saved OpenRouter API key to QSettings (len=%d)", len(openrouter_key))
-
-            # Save Jina API key
-            jina_key = self.api_key_input.text().strip()
-            if settings is not None:
-                settings.setValue("jina_api_key", jina_key)
-                self.logger.info("Saved Jina API key to QSettings (len=%d)", len(jina_key))
         except Exception:
             self.logger.exception("Error while saving configuration values to QSettings")
 
