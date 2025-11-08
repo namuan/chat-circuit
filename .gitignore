@@ -23,5 +23,6 @@
 !.pre-commit-config.yaml
 !install.command
 !setup_launcher.sh
+!.python-version
 
 __pycache__
