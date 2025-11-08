@@ -231,8 +231,7 @@ def resource_path(relative_path):
     return base_path / relative_path
 
 
-# Deprecated static config: models.conf
-# Dynamic discovery is now used exclusively; start empty and set later.
+# Dynamic discovery is used exclusively; start empty and set later.
 LLM_MODELS: list[str] = []
 DEFAULT_LLM_MODEL: str = "ollama_chat/llama3:latest"
 

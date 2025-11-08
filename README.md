@@ -71,6 +71,16 @@ This application discovers available LLM models dynamically:
 - Discovers local models from `Ollama` running at `http://localhost:11434`.
 - Discovers free models from `OpenRouter` when `OPENROUTER_API_KEY` is set (or via Configuration dialog).
 
-If a provider fails to respond (e.g., Ollama not running or missing OpenRouter API key), the app shows a warning but continues with models from other providers. No `models.conf` file is used anymore.
+If a provider fails to respond (e.g., Ollama not running or missing OpenRouter API key), the app shows a warning but continues with models from other providers.
 
 If no models are discovered from any provider, the app shows an error; please ensure Ollama is running and/or set `OPENROUTER_API_KEY`.
+
+### Running via Make
+
+Prefer the provided make targets for development and running:
+
+```shell
+make install    # set up environment and pre-commit hooks
+make check      # run linters/formatters and pre-commit checks
+make run        # launch the application
+```
