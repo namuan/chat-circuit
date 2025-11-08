@@ -16,8 +16,7 @@ a = Analysis(['main.py'],
              binaries=None,
              datas=[
                   ('resources', 'resources'),
-                  (tokenizer_path, 'litellm/litellm_core_utils/tokenizers'),
-                  ('models.conf', '.')
+                  (tokenizer_path, 'litellm/litellm_core_utils/tokenizers')
               ],
              hiddenimports=['tiktoken_ext.openai_public', 'tiktoken_ext'],
              hookspath=None,

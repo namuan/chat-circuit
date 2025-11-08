@@ -64,17 +64,13 @@ python3 -m pip install -r requirements.txt
 python3 main.py
 ```
 
-### Model Configuration
+### Model Discovery
 
-The LLM models available are loaded from `models.conf` in the current directory
-See `models.conf.example`
+This application discovers available LLM models dynamically:
 
-The default model is the first one in that list
+- Discovers local models from `Ollama` running at `http://localhost:11434`.
+- Discovers free models from `OpenRouter` when `OPENROUTER_API_KEY` is set (or via Configuration dialog).
 
-You can also run this command to generate the `models.conf` file
+If a provider fails to respond (e.g., Ollama not running or missing OpenRouter API key), the app shows a warning but continues with models from other providers. No `models.conf` file is used anymore.
 
-```shell
-ollama list | tail -n +2 | awk '{print "ollama_chat/"$1}' > models.conf
-```
-
-Note: If models.conf is not found, the application will use a default set of models.
+If no models are discovered from any provider, the app shows an error; please ensure Ollama is running and/or set `OPENROUTER_API_KEY`.

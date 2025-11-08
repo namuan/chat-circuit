@@ -231,27 +231,10 @@ def resource_path(relative_path):
     return base_path / relative_path
 
 
-def load_models_from_config(config_file="models.conf"):
-    config_logger = get_logger("config")
-    config_path = Path(__file__).parent / config_file
-
-    try:
-        with config_path.open() as f:
-            models = [line.strip() for line in f if line.strip()]
-        config_logger.info("Loaded %s models from %s", len(models), config_file)
-    except FileNotFoundError:
-        config_logger.warning("Config file %s not found. Using default models.", config_file)
-        models = [
-            "llama3:latest",
-            "mistral:latest",
-            "tinyllama:latest",
-        ]
-
-    return models
-
-
-LLM_MODELS = load_models_from_config()
-DEFAULT_LLM_MODEL = LLM_MODELS[0]
+# Deprecated static config: models.conf
+# Dynamic discovery is now used exclusively; start empty and set later.
+LLM_MODELS: list[str] = []
+DEFAULT_LLM_MODEL: str = "ollama_chat/llama3:latest"
 
 
 # Provider-aware model resolution helpers
@@ -463,7 +446,7 @@ def discover_openrouter_free_models(settings: QSettings | None = None) -> list[s
         return []
 
 
-def preload_models(settings: QSettings | None = None) -> list[str]:
+def preload_models(settings: QSettings | None = None) -> tuple[list[str], dict[str, int]]:
     logger = get_logger("model_preloader")
     logger.info("Starting dynamic model discovery (Ollama + OpenRouter free)")
     discovered: list[str] = []
@@ -478,10 +461,21 @@ def preload_models(settings: QSettings | None = None) -> list[str]:
             seen.add(m)
             seen.add(m)
 
-    # If discovery fails, keep previously loaded models but inform user
-    if not discovered:
-        logger.error("No models discovered dynamically. Please ensure Ollama is running and OpenRouter key is set.")
-        return LLM_MODELS
+    # Log partial failures explicitly for visibility
+    if not ollama:
+        logger.error("Ollama discovery returned no models. Ensure Ollama is running at http://localhost:11434.")
+    if not openrouter_free:
+        logger.error(
+            "OpenRouter discovery returned no free models. Set OPENROUTER_API_KEY or check network connectivity."
+        )
+
+    # Log sample of discovered models for quick inspection
+    try:
+        sample = discovered[:10]
+        if sample:
+            logger.debug("Discovered models sample: %s", sample)
+    except Exception:
+        logger.exception("Failed logging discovered models sample")
 
     logger.info(
         "Preloader discovered %s models (ollama=%s, openrouter_free=%s)",
@@ -489,7 +483,7 @@ def preload_models(settings: QSettings | None = None) -> list[str]:
         len(ollama),
         len(openrouter_free),
     )
-    return discovered
+    return discovered, {"ollama": len(ollama), "openrouter_free": len(openrouter_free)}
 
 
 def startup_dynamic_model_init() -> None:
@@ -502,16 +496,50 @@ def startup_dynamic_model_init() -> None:
         startup_settings = None
 
     try:
-        discovered_models = preload_models(startup_settings)
+        discovered_models, counts = preload_models(startup_settings)
         if isinstance(discovered_models, list) and discovered_models:
             global LLM_MODELS, DEFAULT_LLM_MODEL
             LLM_MODELS = discovered_models
             DEFAULT_LLM_MODEL = LLM_MODELS[0]
             logger.info("LLM models set from dynamic discovery: %s models", len(LLM_MODELS))
+            try:
+                sample = LLM_MODELS[:10]
+                if sample:
+                    logger.debug("Startup models sample: %s", sample)
+            except Exception:
+                logger.exception("Failed logging startup models sample")
+
+            # Show UI warning for partial discovery failures
+            try:
+                if counts.get("ollama", 0) == 0 and counts.get("openrouter_free", 0) > 0:
+                    QMessageBox.warning(
+                        None,
+                        "Model Discovery Warning",
+                        "Ollama discovery failed. Ensure Ollama is running at http://localhost:11434.\n"
+                        "Continuing with models from other providers.",
+                    )
+                if counts.get("openrouter_free", 0) == 0 and counts.get("ollama", 0) > 0:
+                    QMessageBox.warning(
+                        None,
+                        "Model Discovery Warning",
+                        "OpenRouter discovery failed or returned no free models. Set OPENROUTER_API_KEY in settings or environment.\n"
+                        "Continuing with models from other providers.",
+                    )
+            except Exception:
+                logger.exception("Failed to display discovery warning message")
         else:
-            logger.warning("Model preloader returned no models; falling back to config file models")
+            logger.error("Model preloader returned no models; no providers reported models.")
+            try:
+                QMessageBox.critical(
+                    None,
+                    "Model Discovery Error",
+                    "No models discovered from any provider.\n"
+                    "Please ensure Ollama is running and/or set OPENROUTER_API_KEY.",
+                )
+            except Exception:
+                logger.exception("Failed to display discovery error message")
     except Exception:
-        logger.exception("Unexpected error during dynamic model preload; using config file models")
+        logger.exception("Unexpected error during dynamic model preload; dynamic discovery failed")
 
 
 thread_pool = QThreadPool()
@@ -1023,6 +1051,7 @@ class HeaderWidget(QGraphicsWidget):
     def __init__(self, model_name):
         super().__init__()
 
+        self.logger = get_logger("ui.header")
         self.model_dropdown = QComboBox()
         self.progress_bar = QProgressBar()
         self.model_name = model_name
@@ -1040,6 +1069,23 @@ class HeaderWidget(QGraphicsWidget):
         main_layout.setSpacing(0)
 
         self.model_dropdown.addItems(LLM_MODELS)
+        try:
+            count = self.model_dropdown.count()
+            sample = [self.model_dropdown.itemText(i) for i in range(min(10, count))]
+            self.logger.info("Model dropdown populated: count=%d", count)
+            if sample:
+                self.logger.debug("Model dropdown sample: %s", sample)
+            if count == 0:
+                self.logger.error("Model dropdown has no entries. Check discovery logs and settings.")
+        except Exception:
+            self.logger.exception("Failed to log model dropdown population")
+
+        # Emit signal on selection change to propagate model updates
+        try:
+            self.model_dropdown.currentTextChanged.connect(self.on_model_changed)
+            self.logger.debug("Connected model dropdown change signal")
+        except Exception:
+            self.logger.exception("Failed connecting model dropdown signal")
         self.model_dropdown.setStyleSheet(
             """
             QComboBox {
@@ -1128,6 +1174,12 @@ class HeaderWidget(QGraphicsWidget):
             self.progress_bar.hide()
 
     def on_model_changed(self, new_model):
+        try:
+            provider = resolve_provider(new_model)
+            self.logger.info("Header model changed: %s (provider=%s)", new_model, provider)
+        except Exception:
+            # Still proceed with emitting even if logging fails
+            self.logger.exception("Error logging header model change for: %s", new_model)
         self.model_name = new_model
         self.model_changed.emit(new_model)
 
@@ -1992,6 +2044,11 @@ class FormWidget(QGraphicsWidget):
             self.llm_worker.signals.notify_child.emit()
 
     def on_model_changed(self, new_model):
+        try:
+            provider = resolve_provider(new_model)
+            self.logger.info("Form model changed: %s (provider=%s)", new_model, provider)
+        except Exception:
+            self.logger.exception("Error logging form model change for: %s", new_model)
         self.model = new_model
 
     def handle_update(self, text):
