@@ -244,8 +244,10 @@ def resolve_provider(model_str: str) -> str:
     Expected prefixes:
     - "ollama_chat/" for Ollama local models
     - "openrouter/" for OpenRouter models
+    - "lmstudio/" for LMStudio local models
+    - "koboldcpp/" for KoboldCpp local models
 
-    Returns: "ollama", "openrouter", or "unknown"
+    Returns: "ollama", "openrouter", "lmstudio", "koboldcpp", or "unknown"
     """
     try:
         if isinstance(model_str, str):
@@ -253,6 +255,10 @@ def resolve_provider(model_str: str) -> str:
                 return "ollama"
             if model_str.startswith("openrouter/"):
                 return "openrouter"
+            if model_str.startswith("lmstudio/"):
+                return "lmstudio"
+            if model_str.startswith("koboldcpp/"):
+                return "koboldcpp"
     except Exception:
         get_logger("provider_resolver").exception("Error resolving provider for model: %s")
     return "unknown"
@@ -264,7 +270,7 @@ def strip_provider_prefix(model_str: str) -> str:
     If no known prefix is present, return the original string.
     """
     try:
-        prefixes = ("ollama_chat/", "openrouter/")
+        prefixes = ("ollama_chat/", "openrouter/", "lmstudio/", "koboldcpp/")
         for pfx in prefixes:
             if model_str.startswith(pfx):
                 return model_str[len(pfx) :]
@@ -279,6 +285,8 @@ def build_llm_call_config(model_str: str, settings: QSettings | None = None) -> 
 
     - For Ollama: set api_base to local server
     - For OpenRouter: set api_base to OpenRouter, and include api_key from QSettings or env
+    - For LMStudio: set api_base to LMStudio local server
+    - For KoboldCpp: set api_base to KoboldCpp local server
 
     The returned dict is intended to be used with litellm.completion(**config).
     """
@@ -291,7 +299,7 @@ def build_llm_call_config(model_str: str, settings: QSettings | None = None) -> 
     if provider == "ollama":
         # Normalize to provider-prefixed form for consistency
         config["model"] = f"ollama_chat/{raw_model}"
-        config["api_base"] = "http://localhost:11434"
+        config["api_base"] = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
         logger.debug("Resolved Ollama config for model=%s", raw_model)
     elif provider == "openrouter":
         config["model"] = f"openrouter/{raw_model}"
@@ -321,10 +329,20 @@ def build_llm_call_config(model_str: str, settings: QSettings | None = None) -> 
             logger.warning("OpenRouter API key not set. Set it in Configuration or via OPENROUTER_API_KEY env.")
 
         logger.debug("Resolved OpenRouter config for model=%s", raw_model)
+    elif provider == "lmstudio":
+        # LMStudio uses OpenAI-compatible API
+        config["model"] = f"openai/{raw_model}"
+        config["api_base"] = os.getenv("LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+        logger.debug("Resolved LMStudio config for model=%s", raw_model)
+    elif provider == "koboldcpp":
+        # KoboldCpp uses OpenAI-compatible API
+        config["model"] = f"openai/{raw_model}"
+        config["api_base"] = os.getenv("KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
+        logger.debug("Resolved KoboldCpp config for model=%s", raw_model)
     else:
         # Default to local Ollama for unknown providers, with warning
         config["model"] = raw_model
-        config["api_base"] = "http://localhost:11434"
+        config["api_base"] = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
         logger.warning("Unknown provider for model '%s'. Defaulting to local Ollama.", model_str)
 
     logger.info(
@@ -345,7 +363,7 @@ def _safe_get(json_obj: dict, *keys, default=None):
 
 def discover_ollama_models() -> list[str]:
     logger = get_logger("model_preloader")
-    base = "http://localhost:11434"
+    base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
     tags_url = f"{base}/api/tags"
     models: list[str] = []
     try:
@@ -362,6 +380,50 @@ def discover_ollama_models() -> list[str]:
         logger.info("Discovered %s Ollama models", len(models))
     except Exception as e:
         logger.warning("Failed discovering Ollama models: %s", e)
+    return models
+
+
+def discover_lmstudio_models() -> list[str]:
+    logger = get_logger("model_preloader")
+    base = os.getenv("LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+    models_url = f"{base}/models"
+    models: list[str] = []
+    try:
+        logger.info("Discovering LMStudio models from %s", models_url)
+        resp = requests.get(models_url, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("data", [])
+        for item in items:
+            model_id = item.get("id")
+            if isinstance(model_id, str) and model_id.strip():
+                # Prefix with provider
+                models.append(f"lmstudio/{model_id.strip()}")
+        logger.info("Discovered %s LMStudio models", len(models))
+    except Exception as e:
+        logger.warning("Failed discovering LMStudio models: %s", e)
+    return models
+
+
+def discover_koboldcpp_models() -> list[str]:
+    logger = get_logger("model_preloader")
+    base = os.getenv("KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
+    models_url = f"{base}/models"
+    models: list[str] = []
+    try:
+        logger.info("Discovering KoboldCpp models from %s", models_url)
+        resp = requests.get(models_url, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("data", [])
+        for item in items:
+            model_id = item.get("id")
+            if isinstance(model_id, str) and model_id.strip():
+                # Prefix with provider
+                models.append(f"koboldcpp/{model_id.strip()}")
+        logger.info("Discovered %s KoboldCpp models", len(models))
+    except Exception as e:
+        logger.warning("Failed discovering KoboldCpp models: %s", e)
     return models
 
 
@@ -447,22 +509,27 @@ def discover_openrouter_free_models(settings: QSettings | None = None) -> list[s
 
 def preload_models(settings: QSettings | None = None) -> tuple[list[str], dict[str, int]]:
     logger = get_logger("model_preloader")
-    logger.info("Starting dynamic model discovery (Ollama + OpenRouter free)")
+    logger.info("Starting dynamic model discovery (Ollama + LMStudio + KoboldCpp + OpenRouter free)")
     discovered: list[str] = []
     # Discover from providers
     ollama = discover_ollama_models()
+    lmstudio = discover_lmstudio_models()
+    koboldcpp = discover_koboldcpp_models()
     openrouter_free = discover_openrouter_free_models(settings)
-    # Merge and de-duplicate while preserving order (Ollama first)
+    # Merge and de-duplicate while preserving order (Ollama first, then LMStudio, KoboldCpp, OpenRouter)
     seen = set()
-    for m in ollama + openrouter_free:
+    for m in ollama + lmstudio + koboldcpp + openrouter_free:
         if m not in seen:
             discovered.append(m)
-            seen.add(m)
             seen.add(m)
 
     # Log partial failures explicitly for visibility
     if not ollama:
         logger.error("Ollama discovery returned no models. Ensure Ollama is running at http://localhost:11434.")
+    if not lmstudio:
+        logger.warning("LMStudio discovery returned no models. Ensure LMStudio is running at http://localhost:1234.")
+    if not koboldcpp:
+        logger.warning("KoboldCpp discovery returned no models. Ensure KoboldCpp is running at http://localhost:5001.")
     if not openrouter_free:
         logger.error(
             "OpenRouter discovery returned no free models. Set OPENROUTER_API_KEY or check network connectivity."
@@ -477,12 +544,19 @@ def preload_models(settings: QSettings | None = None) -> tuple[list[str], dict[s
         logger.exception("Failed logging discovered models sample")
 
     logger.info(
-        "Preloader discovered %s models (ollama=%s, openrouter_free=%s)",
+        "Preloader discovered %s models (ollama=%s, lmstudio=%s, koboldcpp=%s, openrouter_free=%s)",
         len(discovered),
         len(ollama),
+        len(lmstudio),
+        len(koboldcpp),
         len(openrouter_free),
     )
-    return discovered, {"ollama": len(ollama), "openrouter_free": len(openrouter_free)}
+    return discovered, {
+        "ollama": len(ollama),
+        "lmstudio": len(lmstudio),
+        "koboldcpp": len(koboldcpp),
+        "openrouter_free": len(openrouter_free),
+    }
 
 
 def startup_dynamic_model_init() -> None:
@@ -510,18 +584,24 @@ def startup_dynamic_model_init() -> None:
 
             # Show UI warning for partial discovery failures
             try:
-                if counts.get("ollama", 0) == 0 and counts.get("openrouter_free", 0) > 0:
+                total_discovered = sum(counts.values())
+                if total_discovered == 0:
+                    # No models from any provider
+                    QMessageBox.critical(
+                        None,
+                        "Model Discovery Error",
+                        "No models discovered from any provider.\n"
+                        "Please ensure at least one provider is running:\n"
+                        "- Ollama at http://localhost:11434\n"
+                        "- LMStudio at http://localhost:1234\n"
+                        "- KoboldCpp at http://localhost:5001\n"
+                        "- Or set OPENROUTER_API_KEY for OpenRouter",
+                    )
+                elif counts.get("ollama", 0) == 0 and total_discovered > 0:
                     QMessageBox.warning(
                         None,
                         "Model Discovery Warning",
                         "Ollama discovery failed. Ensure Ollama is running at http://localhost:11434.\n"
-                        "Continuing with models from other providers.",
-                    )
-                if counts.get("openrouter_free", 0) == 0 and counts.get("ollama", 0) > 0:
-                    QMessageBox.warning(
-                        None,
-                        "Model Discovery Warning",
-                        "OpenRouter discovery failed or returned no free models. Set OPENROUTER_API_KEY in settings or environment.\n"
                         "Continuing with models from other providers.",
                     )
             except Exception:
@@ -533,7 +613,11 @@ def startup_dynamic_model_init() -> None:
                     None,
                     "Model Discovery Error",
                     "No models discovered from any provider.\n"
-                    "Please ensure Ollama is running and/or set OPENROUTER_API_KEY.",
+                    "Please ensure at least one provider is running:\n"
+                    "- Ollama at http://localhost:11434\n"
+                    "- LMStudio at http://localhost:1234\n"
+                    "- KoboldCpp at http://localhost:5001\n"
+                    "- Or set OPENROUTER_API_KEY for OpenRouter",
                 )
             except Exception:
                 logger.exception("Failed to display discovery error message")

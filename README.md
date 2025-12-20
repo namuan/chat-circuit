@@ -66,14 +66,28 @@ python3 main.py
 
 ### Model Discovery
 
-This application discovers available LLM models dynamically:
+This application discovers available LLM models dynamically from multiple providers:
 
-- Discovers local models from `Ollama` running at `http://localhost:11434`.
-- Discovers free models from `OpenRouter` when `OPENROUTER_API_KEY` is set (or via Configuration dialog).
+- **Ollama**: Discovers local models from `Ollama` running at `http://localhost:11434` (configurable via `OLLAMA_API_BASE` env var).
+- **LMStudio**: Discovers local models from `LMStudio` running at `http://localhost:1234` (configurable via `LMSTUDIO_API_BASE` env var).
+- **KoboldCpp**: Discovers local models from `KoboldCpp` running at `http://localhost:5001` (configurable via `KOBOLDCPP_API_BASE` env var).
+- **OpenRouter**: Discovers free models from `OpenRouter` when `OPENROUTER_API_KEY` is set (via Configuration dialog or env var).
 
-If a provider fails to respond (e.g., Ollama not running or missing OpenRouter API key), the app shows a warning but continues with models from other providers.
+All local providers (Ollama, LMStudio, KoboldCpp) use OpenAI-compatible APIs through LiteLLM.
 
-If no models are discovered from any provider, the app shows an error; please ensure Ollama is running and/or set `OPENROUTER_API_KEY`.
+**Provider Configuration:**
+
+You can customize provider endpoints using environment variables:
+```shell
+export OLLAMA_API_BASE="http://localhost:11434"      # Default Ollama endpoint
+export LMSTUDIO_API_BASE="http://localhost:1234/v1"  # Default LMStudio endpoint
+export KOBOLDCPP_API_BASE="http://localhost:5001/v1" # Default KoboldCpp endpoint
+export OPENROUTER_API_KEY="your-api-key"              # OpenRouter API key
+```
+
+If a provider fails to respond (e.g., server not running), the app shows a warning but continues with models from other providers.
+
+If no models are discovered from any provider, the app shows an error; please ensure at least one provider is running.
 
 ### Running via Make
 
