@@ -79,8 +79,8 @@ All providers are auto-discovered at startup. The app will work with any combina
 
 You can configure provider endpoints in two ways:
 
-1. **Via Configuration Dialog (Recommended)**: 
-   - Open Configuration via menu: `Configuration > API Keys...` or press `Ctrl+,`
+1. **Via Configuration Dialog (Recommended)**:
+   - Open Configuration via menu: `Configuration > Models...` or press `Ctrl+,`
    - Enter custom endpoints for Ollama, LMStudio, and KoboldCpp
    - Settings are saved automatically and persist across sessions
 
