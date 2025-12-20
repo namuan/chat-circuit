@@ -49,6 +49,54 @@ It is possible to re-run all the nodes in a branch after changing the prompt it 
 
 ![](docs/re-run-button.png)
 
+### Supported Providers
+
+Chat Circuit supports multiple LLM providers through a flexible, provider-based architecture:
+
+#### Local Providers (OpenAI-compatible APIs)
+
+| Provider | Default Endpoint | Environment Variable | Description |
+|----------|------------------|---------------------|-------------|
+| **Ollama** | `http://localhost:11434` | `OLLAMA_API_BASE` | Popular local LLM server |
+| **LMStudio** | `http://localhost:1234/v1` | `LMSTUDIO_API_BASE` | Desktop app for running LLMs locally |
+| **KoboldCpp** | `http://localhost:5001/v1` | `KOBOLDCPP_API_BASE` | Lightweight local inference server |
+
+#### Cloud Providers
+
+| Provider | Endpoint | Environment Variable | Description |
+|----------|----------|---------------------|-------------|
+| **OpenRouter** | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` | Access to multiple cloud LLMs (requires API key) |
+
+All providers are auto-discovered at startup. The app will work with any combination of available providers.
+
+**Quick Start:**
+
+1. Start your preferred local provider (Ollama, LMStudio, or KoboldCpp)
+2. Launch Chat Circuit - models will be automatically discovered
+3. Select a model from the dropdown in any conversation node
+
+**Configuring Provider Endpoints:**
+
+You can configure provider endpoints in two ways:
+
+1. **Via Configuration Dialog (Recommended)**: 
+   - Open Configuration via menu: `Configuration > API Keys...` or press `Ctrl+,`
+   - Enter custom endpoints for Ollama, LMStudio, and KoboldCpp
+   - Settings are saved automatically and persist across sessions
+
+2. **Via Environment Variables** (fallback if not set in UI):
+   ```bash
+   # Example: Run with custom endpoints via environment variables
+   OLLAMA_API_BASE="http://192.168.1.100:11434" \
+   LMSTUDIO_API_BASE="http://localhost:1234/v1" \
+   KOBOLDCPP_API_BASE="http://localhost:5001/v1" \
+   python3 main.py
+   ```
+
+See `provider-config.example.sh` for more detailed configuration examples.
+
+**Configuration Priority**: UI Settings > Environment Variables > Defaults
+
 ### Running the Application
 
 To run this application, follow these steps:
@@ -66,14 +114,28 @@ python3 main.py
 
 ### Model Discovery
 
-This application discovers available LLM models dynamically:
+This application discovers available LLM models dynamically from multiple providers:
 
-- Discovers local models from `Ollama` running at `http://localhost:11434`.
-- Discovers free models from `OpenRouter` when `OPENROUTER_API_KEY` is set (or via Configuration dialog).
+- **Ollama**: Discovers local models from `Ollama` running at `http://localhost:11434` (configurable via `OLLAMA_API_BASE` env var).
+- **LMStudio**: Discovers local models from `LMStudio` running at `http://localhost:1234` (configurable via `LMSTUDIO_API_BASE` env var).
+- **KoboldCpp**: Discovers local models from `KoboldCpp` running at `http://localhost:5001` (configurable via `KOBOLDCPP_API_BASE` env var).
+- **OpenRouter**: Discovers free models from `OpenRouter` when `OPENROUTER_API_KEY` is set (via Configuration dialog or env var).
 
-If a provider fails to respond (e.g., Ollama not running or missing OpenRouter API key), the app shows a warning but continues with models from other providers.
+All local providers (Ollama, LMStudio, KoboldCpp) use OpenAI-compatible APIs through LiteLLM.
 
-If no models are discovered from any provider, the app shows an error; please ensure Ollama is running and/or set `OPENROUTER_API_KEY`.
+**Provider Configuration:**
+
+You can customize provider endpoints using environment variables:
+```shell
+export OLLAMA_API_BASE="http://localhost:11434"      # Default Ollama endpoint
+export LMSTUDIO_API_BASE="http://localhost:1234/v1"  # Default LMStudio endpoint
+export KOBOLDCPP_API_BASE="http://localhost:5001/v1" # Default KoboldCpp endpoint
+export OPENROUTER_API_KEY="your-api-key"              # OpenRouter API key
+```
+
+If a provider fails to respond (e.g., server not running), the app shows a warning but continues with models from other providers.
+
+If no models are discovered from any provider, the app shows an error; please ensure at least one provider is running.
 
 ### Running via Make
 

@@ -19,6 +19,7 @@
 !main.py
 !main.spec
 !models.conf.example
+!provider-config.example.sh
 !LICENSE
 !.pre-commit-config.yaml
 !install.command
