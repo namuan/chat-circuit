@@ -299,7 +299,7 @@ def build_llm_call_config(model_str: str, settings: QSettings | None = None) -> 
     if provider == "ollama":
         # Normalize to provider-prefixed form for consistency
         config["model"] = f"ollama_chat/{raw_model}"
-        config["api_base"] = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+        config["api_base"] = _get_provider_endpoint(settings, "ollama_api_base", "OLLAMA_API_BASE", "http://localhost:11434")
         logger.debug("Resolved Ollama config for model=%s", raw_model)
     elif provider == "openrouter":
         config["model"] = f"openrouter/{raw_model}"
@@ -332,17 +332,17 @@ def build_llm_call_config(model_str: str, settings: QSettings | None = None) -> 
     elif provider == "lmstudio":
         # LMStudio uses OpenAI-compatible API
         config["model"] = f"openai/{raw_model}"
-        config["api_base"] = os.getenv("LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+        config["api_base"] = _get_provider_endpoint(settings, "lmstudio_api_base", "LMSTUDIO_API_BASE", "http://localhost:1234/v1")
         logger.debug("Resolved LMStudio config for model=%s", raw_model)
     elif provider == "koboldcpp":
         # KoboldCpp uses OpenAI-compatible API
         config["model"] = f"openai/{raw_model}"
-        config["api_base"] = os.getenv("KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
+        config["api_base"] = _get_provider_endpoint(settings, "koboldcpp_api_base", "KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
         logger.debug("Resolved KoboldCpp config for model=%s", raw_model)
     else:
         # Default to local Ollama for unknown providers, with warning
         config["model"] = raw_model
-        config["api_base"] = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+        config["api_base"] = _get_provider_endpoint(settings, "ollama_api_base", "OLLAMA_API_BASE", "http://localhost:11434")
         logger.warning("Unknown provider for model '%s'. Defaulting to local Ollama.", model_str)
 
     logger.info(
@@ -361,9 +361,9 @@ def _safe_get(json_obj: dict, *keys, default=None):
     return current
 
 
-def discover_ollama_models() -> list[str]:
+def discover_ollama_models(settings: QSettings | None = None) -> list[str]:
     logger = get_logger("model_preloader")
-    base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+    base = _get_provider_endpoint(settings, "ollama_api_base", "OLLAMA_API_BASE", "http://localhost:11434")
     tags_url = f"{base}/api/tags"
     models: list[str] = []
     try:
@@ -383,9 +383,9 @@ def discover_ollama_models() -> list[str]:
     return models
 
 
-def discover_lmstudio_models() -> list[str]:
+def discover_lmstudio_models(settings: QSettings | None = None) -> list[str]:
     logger = get_logger("model_preloader")
-    base = os.getenv("LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+    base = _get_provider_endpoint(settings, "lmstudio_api_base", "LMSTUDIO_API_BASE", "http://localhost:1234/v1")
     models_url = f"{base}/models"
     models: list[str] = []
     try:
@@ -405,9 +405,9 @@ def discover_lmstudio_models() -> list[str]:
     return models
 
 
-def discover_koboldcpp_models() -> list[str]:
+def discover_koboldcpp_models(settings: QSettings | None = None) -> list[str]:
     logger = get_logger("model_preloader")
-    base = os.getenv("KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
+    base = _get_provider_endpoint(settings, "koboldcpp_api_base", "KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
     models_url = f"{base}/models"
     models: list[str] = []
     try:
@@ -467,6 +467,38 @@ def _get_openrouter_api_key(settings: QSettings | None) -> str | None:
     return None
 
 
+def _get_provider_endpoint(settings: QSettings | None, settings_key: str, env_key: str, default: str) -> str:
+    """
+    Get provider endpoint from QSettings first, then environment variable, then default.
+    
+    Args:
+        settings: QSettings instance or None
+        settings_key: Key to look up in QSettings (e.g., "ollama_api_base")
+        env_key: Environment variable name (e.g., "OLLAMA_API_BASE")
+        default: Default value if neither QSettings nor env var is set
+    
+    Returns:
+        Provider endpoint URL
+    """
+    logger = get_logger("provider_resolver")
+    try:
+        if settings is not None:
+            val = settings.value(settings_key)
+            if isinstance(val, str) and val.strip():
+                logger.debug("Using %s from QSettings: %s", settings_key, val.strip())
+                return val.strip()
+    except Exception:
+        logger.exception("Error reading %s from QSettings", settings_key)
+    
+    env_val = os.getenv(env_key)
+    if env_val and env_val.strip():
+        logger.debug("Using %s from environment: %s", env_key, env_val.strip())
+        return env_val.strip()
+    
+    logger.debug("Using default for %s: %s", settings_key, default)
+    return default
+
+
 def _filter_free_openrouter_models(items: list[dict]) -> list[str]:
     count = 0
     free_models: list[str] = []
@@ -512,9 +544,9 @@ def preload_models(settings: QSettings | None = None) -> tuple[list[str], dict[s
     logger.info("Starting dynamic model discovery (Ollama + LMStudio + KoboldCpp + OpenRouter free)")
     discovered: list[str] = []
     # Discover from providers
-    ollama = discover_ollama_models()
-    lmstudio = discover_lmstudio_models()
-    koboldcpp = discover_koboldcpp_models()
+    ollama = discover_ollama_models(settings)
+    lmstudio = discover_lmstudio_models(settings)
+    koboldcpp = discover_koboldcpp_models(settings)
     openrouter_free = discover_openrouter_free_models(settings)
     # Merge and de-duplicate while preserving order (Ollama first, then LMStudio, KoboldCpp, OpenRouter)
     seen = set()
@@ -525,13 +557,13 @@ def preload_models(settings: QSettings | None = None) -> tuple[list[str], dict[s
 
     # Log partial failures explicitly for visibility
     if not ollama:
-        ollama_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+        ollama_base = _get_provider_endpoint(settings, "ollama_api_base", "OLLAMA_API_BASE", "http://localhost:11434")
         logger.error("Ollama discovery returned no models. Ensure Ollama is running at %s.", ollama_base)
     if not lmstudio:
-        lmstudio_base = os.getenv("LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+        lmstudio_base = _get_provider_endpoint(settings, "lmstudio_api_base", "LMSTUDIO_API_BASE", "http://localhost:1234/v1")
         logger.warning("LMStudio discovery returned no models. Ensure LMStudio is running at %s.", lmstudio_base)
     if not koboldcpp:
-        koboldcpp_base = os.getenv("KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
+        koboldcpp_base = _get_provider_endpoint(settings, "koboldcpp_api_base", "KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
         logger.warning("KoboldCpp discovery returned no models. Ensure KoboldCpp is running at %s.", koboldcpp_base)
     if not openrouter_free:
         logger.error(
@@ -2322,6 +2354,42 @@ class ConfigDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
+        # Provider Endpoints Section
+        provider_group_label = QLabel("<b>Provider Endpoints</b>")
+        layout.addWidget(provider_group_label)
+
+        # Ollama endpoint
+        ollama_layout = QHBoxLayout()
+        ollama_label = QLabel("Ollama API Base:")
+        self.ollama_api_base_input = QLineEdit()
+        self.ollama_api_base_input.setPlaceholderText("http://localhost:11434")
+        ollama_layout.addWidget(ollama_label)
+        ollama_layout.addWidget(self.ollama_api_base_input)
+        layout.addLayout(ollama_layout)
+
+        # LMStudio endpoint
+        lmstudio_layout = QHBoxLayout()
+        lmstudio_label = QLabel("LMStudio API Base:")
+        self.lmstudio_api_base_input = QLineEdit()
+        self.lmstudio_api_base_input.setPlaceholderText("http://localhost:1234/v1")
+        lmstudio_layout.addWidget(lmstudio_label)
+        lmstudio_layout.addWidget(self.lmstudio_api_base_input)
+        layout.addLayout(lmstudio_layout)
+
+        # KoboldCpp endpoint
+        koboldcpp_layout = QHBoxLayout()
+        koboldcpp_label = QLabel("KoboldCpp API Base:")
+        self.koboldcpp_api_base_input = QLineEdit()
+        self.koboldcpp_api_base_input.setPlaceholderText("http://localhost:5001/v1")
+        koboldcpp_layout.addWidget(koboldcpp_label)
+        koboldcpp_layout.addWidget(self.koboldcpp_api_base_input)
+        layout.addLayout(koboldcpp_layout)
+
+        # Separator
+        layout.addSpacing(10)
+        api_keys_label = QLabel("<b>API Keys</b>")
+        layout.addWidget(api_keys_label)
+
         # OpenRouter API Key input
         openrouter_layout = QHBoxLayout()
         openrouter_label = QLabel("OpenRouter API Key:")
@@ -2337,6 +2405,24 @@ class ConfigDialog(QDialog):
         except Exception:
             self.logger.exception("Failed to initialize QSettings in ConfigDialog; proceeding without settings")
             settings = None
+
+        # Prefill provider endpoints
+        try:
+            ollama_base = _get_provider_endpoint(settings, "ollama_api_base", "OLLAMA_API_BASE", "http://localhost:11434")
+            if ollama_base and ollama_base != "http://localhost:11434":
+                self.ollama_api_base_input.setText(ollama_base)
+            
+            lmstudio_base = _get_provider_endpoint(settings, "lmstudio_api_base", "LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+            if lmstudio_base and lmstudio_base != "http://localhost:1234/v1":
+                self.lmstudio_api_base_input.setText(lmstudio_base)
+            
+            koboldcpp_base = _get_provider_endpoint(settings, "koboldcpp_api_base", "KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
+            if koboldcpp_base and koboldcpp_base != "http://localhost:5001/v1":
+                self.koboldcpp_api_base_input.setText(koboldcpp_base)
+            
+            self.logger.debug("Prefilled provider endpoints from QSettings/env")
+        except Exception:
+            self.logger.exception("Error while pre-filling provider endpoints in ConfigDialog")
 
         # Prefill OpenRouter API key (QSettings or env)
         try:
@@ -2373,11 +2459,36 @@ class ConfigDialog(QDialog):
             settings = None
 
         try:
-            # Save OpenRouter API key
-            openrouter_key = self.openrouter_api_key_input.text().strip()
             if settings is not None:
-                settings.setValue("openrouter_api_key", openrouter_key)
-                self.logger.info("Saved OpenRouter API key to QSettings (len=%d)", len(openrouter_key))
+                # Save provider endpoints
+                ollama_base = self.ollama_api_base_input.text().strip()
+                if ollama_base:
+                    settings.setValue("ollama_api_base", ollama_base)
+                    self.logger.info("Saved Ollama API base to QSettings: %s", ollama_base)
+                else:
+                    settings.remove("ollama_api_base")
+                
+                lmstudio_base = self.lmstudio_api_base_input.text().strip()
+                if lmstudio_base:
+                    settings.setValue("lmstudio_api_base", lmstudio_base)
+                    self.logger.info("Saved LMStudio API base to QSettings: %s", lmstudio_base)
+                else:
+                    settings.remove("lmstudio_api_base")
+                
+                koboldcpp_base = self.koboldcpp_api_base_input.text().strip()
+                if koboldcpp_base:
+                    settings.setValue("koboldcpp_api_base", koboldcpp_base)
+                    self.logger.info("Saved KoboldCpp API base to QSettings: %s", koboldcpp_base)
+                else:
+                    settings.remove("koboldcpp_api_base")
+                
+                # Save OpenRouter API key
+                openrouter_key = self.openrouter_api_key_input.text().strip()
+                if openrouter_key:
+                    settings.setValue("openrouter_api_key", openrouter_key)
+                    self.logger.info("Saved OpenRouter API key to QSettings (len=%d)", len(openrouter_key))
+                else:
+                    settings.remove("openrouter_api_key")
         except Exception:
             self.logger.exception("Error while saving configuration values to QSettings")
 
