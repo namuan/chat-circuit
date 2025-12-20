@@ -49,6 +49,43 @@ It is possible to re-run all the nodes in a branch after changing the prompt it 
 
 ![](docs/re-run-button.png)
 
+### Supported Providers
+
+Chat Circuit supports multiple LLM providers through a flexible, provider-based architecture:
+
+#### Local Providers (OpenAI-compatible APIs)
+
+| Provider | Default Endpoint | Environment Variable | Description |
+|----------|------------------|---------------------|-------------|
+| **Ollama** | `http://localhost:11434` | `OLLAMA_API_BASE` | Popular local LLM server |
+| **LMStudio** | `http://localhost:1234/v1` | `LMSTUDIO_API_BASE` | Desktop app for running LLMs locally |
+| **KoboldCpp** | `http://localhost:5001/v1` | `KOBOLDCPP_API_BASE` | Lightweight local inference server |
+
+#### Cloud Providers
+
+| Provider | Endpoint | Environment Variable | Description |
+|----------|----------|---------------------|-------------|
+| **OpenRouter** | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` | Access to multiple cloud LLMs (requires API key) |
+
+All providers are auto-discovered at startup. The app will work with any combination of available providers.
+
+**Quick Start:**
+
+1. Start your preferred local provider (Ollama, LMStudio, or KoboldCpp)
+2. Launch Chat Circuit - models will be automatically discovered
+3. Select a model from the dropdown in any conversation node
+
+**Custom Endpoints:**
+
+See `provider-config.example.sh` for detailed configuration examples.
+
+```bash
+# Example: Run with custom endpoints
+OLLAMA_API_BASE="http://192.168.1.100:11434" \
+LMSTUDIO_API_BASE="http://localhost:1234/v1" \
+python3 main.py
+```
+
 ### Running the Application
 
 To run this application, follow these steps:
