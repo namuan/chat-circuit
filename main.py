@@ -57,6 +57,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -553,40 +554,58 @@ def discover_openrouter_free_models(settings: QSettings | None = None) -> list[s
         return []
 
 
+def _is_enabled(settings: QSettings | None, key: str) -> bool:
+    return not settings or settings.value(key, True, type=bool)
+
+
+def _discover_provider_models(settings: QSettings | None) -> tuple[list[str], list[str], list[str], list[str]]:
+    logger = get_logger("model_preloader")
+
+    ollama = []
+    if _is_enabled(settings, "enable_ollama"):
+        ollama = discover_ollama_models(settings)
+        if not ollama:
+            base = _get_provider_endpoint(settings, "ollama_api_base", "OLLAMA_API_BASE", DEFAULT_OLLAMA_BASE)
+            logger.error("Ollama discovery returned no models. Ensure Ollama is running at %s.", base)
+
+    lmstudio = []
+    if _is_enabled(settings, "enable_lmstudio"):
+        lmstudio = discover_lmstudio_models(settings)
+        if not lmstudio:
+            base = _get_provider_endpoint(settings, "lmstudio_api_base", "LMSTUDIO_API_BASE", DEFAULT_LMSTUDIO_BASE)
+            logger.warning("LMStudio discovery returned no models. Ensure LMStudio is running at %s.", base)
+
+    koboldcpp = []
+    if _is_enabled(settings, "enable_koboldcpp"):
+        koboldcpp = discover_koboldcpp_models(settings)
+        if not koboldcpp:
+            base = _get_provider_endpoint(settings, "koboldcpp_api_base", "KOBOLDCPP_API_BASE", DEFAULT_KOBOLDCPP_BASE)
+            logger.warning("KoboldCpp discovery returned no models. Ensure KoboldCpp is running at %s.", base)
+
+    openrouter_free = []
+    if _is_enabled(settings, "enable_openrouter"):
+        openrouter_free = discover_openrouter_free_models(settings)
+        if not openrouter_free:
+            logger.error(
+                "OpenRouter discovery returned no free models. Set OPENROUTER_API_KEY or check network connectivity."
+            )
+
+    return ollama, lmstudio, koboldcpp, openrouter_free
+
+
 def preload_models(settings: QSettings | None = None) -> tuple[list[str], dict[str, int]]:
     logger = get_logger("model_preloader")
     logger.info("Starting dynamic model discovery (Ollama + LMStudio + KoboldCpp + OpenRouter free)")
+
+    ollama, lmstudio, koboldcpp, openrouter_free = _discover_provider_models(settings)
+
     discovered: list[str] = []
-    # Discover from providers
-    ollama = discover_ollama_models(settings)
-    lmstudio = discover_lmstudio_models(settings)
-    koboldcpp = discover_koboldcpp_models(settings)
-    openrouter_free = discover_openrouter_free_models(settings)
     # Merge and de-duplicate while preserving order (Ollama first, then LMStudio, KoboldCpp, OpenRouter)
     seen = set()
     for m in ollama + lmstudio + koboldcpp + openrouter_free:
         if m not in seen:
             discovered.append(m)
             seen.add(m)
-
-    # Log partial failures explicitly for visibility
-    if not ollama:
-        ollama_base = _get_provider_endpoint(settings, "ollama_api_base", "OLLAMA_API_BASE", DEFAULT_OLLAMA_BASE)
-        logger.error("Ollama discovery returned no models. Ensure Ollama is running at %s.", ollama_base)
-    if not lmstudio:
-        lmstudio_base = _get_provider_endpoint(
-            settings, "lmstudio_api_base", "LMSTUDIO_API_BASE", DEFAULT_LMSTUDIO_BASE
-        )
-        logger.warning("LMStudio discovery returned no models. Ensure LMStudio is running at %s.", lmstudio_base)
-    if not koboldcpp:
-        koboldcpp_base = _get_provider_endpoint(
-            settings, "koboldcpp_api_base", "KOBOLDCPP_API_BASE", DEFAULT_KOBOLDCPP_BASE
-        )
-        logger.warning("KoboldCpp discovery returned no models. Ensure KoboldCpp is running at %s.", koboldcpp_base)
-    if not openrouter_free:
-        logger.error(
-            "OpenRouter discovery returned no free models. Set OPENROUTER_API_KEY or check network connectivity."
-        )
 
     # Log sample of discovered models for quick inspection
     try:
@@ -2378,27 +2397,36 @@ class ConfigDialog(QDialog):
 
         # Ollama endpoint
         ollama_layout = QHBoxLayout()
+        self.ollama_enabled_check = QCheckBox()
+        self.ollama_enabled_check.setToolTip("Enable Ollama provider")
         ollama_label = QLabel("Ollama API Base:")
         self.ollama_api_base_input = QLineEdit()
         self.ollama_api_base_input.setPlaceholderText(DEFAULT_OLLAMA_BASE)
+        ollama_layout.addWidget(self.ollama_enabled_check)
         ollama_layout.addWidget(ollama_label)
         ollama_layout.addWidget(self.ollama_api_base_input)
         layout.addLayout(ollama_layout)
 
         # LMStudio endpoint
         lmstudio_layout = QHBoxLayout()
+        self.lmstudio_enabled_check = QCheckBox()
+        self.lmstudio_enabled_check.setToolTip("Enable LMStudio provider")
         lmstudio_label = QLabel("LMStudio API Base:")
         self.lmstudio_api_base_input = QLineEdit()
         self.lmstudio_api_base_input.setPlaceholderText(DEFAULT_LMSTUDIO_BASE)
+        lmstudio_layout.addWidget(self.lmstudio_enabled_check)
         lmstudio_layout.addWidget(lmstudio_label)
         lmstudio_layout.addWidget(self.lmstudio_api_base_input)
         layout.addLayout(lmstudio_layout)
 
         # KoboldCpp endpoint
         koboldcpp_layout = QHBoxLayout()
+        self.koboldcpp_enabled_check = QCheckBox()
+        self.koboldcpp_enabled_check.setToolTip("Enable KoboldCpp provider")
         koboldcpp_label = QLabel("KoboldCpp API Base:")
         self.koboldcpp_api_base_input = QLineEdit()
         self.koboldcpp_api_base_input.setPlaceholderText(DEFAULT_KOBOLDCPP_BASE)
+        koboldcpp_layout.addWidget(self.koboldcpp_enabled_check)
         koboldcpp_layout.addWidget(koboldcpp_label)
         koboldcpp_layout.addWidget(self.koboldcpp_api_base_input)
         layout.addLayout(koboldcpp_layout)
@@ -2410,9 +2438,12 @@ class ConfigDialog(QDialog):
 
         # OpenRouter API Key input
         openrouter_layout = QHBoxLayout()
+        self.openrouter_enabled_check = QCheckBox()
+        self.openrouter_enabled_check.setToolTip("Enable OpenRouter provider")
         openrouter_label = QLabel("OpenRouter API Key:")
         self.openrouter_api_key_input = QLineEdit()
         self.openrouter_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        openrouter_layout.addWidget(self.openrouter_enabled_check)
         openrouter_layout.addWidget(openrouter_label)
         openrouter_layout.addWidget(self.openrouter_api_key_input)
         layout.addLayout(openrouter_layout)
@@ -2426,6 +2457,18 @@ class ConfigDialog(QDialog):
 
         # Prefill provider endpoints
         try:
+            # Prefill enabled states
+            self.ollama_enabled_check.setChecked(settings.value("enable_ollama", True, type=bool) if settings else True)
+            self.lmstudio_enabled_check.setChecked(
+                settings.value("enable_lmstudio", True, type=bool) if settings else True
+            )
+            self.koboldcpp_enabled_check.setChecked(
+                settings.value("enable_koboldcpp", True, type=bool) if settings else True
+            )
+            self.openrouter_enabled_check.setChecked(
+                settings.value("enable_openrouter", True, type=bool) if settings else True
+            )
+
             ollama_base = _get_provider_endpoint(settings, "ollama_api_base", "OLLAMA_API_BASE", DEFAULT_OLLAMA_BASE)
             if ollama_base and ollama_base != DEFAULT_OLLAMA_BASE:
                 self.ollama_api_base_input.setText(ollama_base)
@@ -2482,6 +2525,12 @@ class ConfigDialog(QDialog):
 
         try:
             if settings is not None:
+                # Save enabled states
+                settings.setValue("enable_ollama", self.ollama_enabled_check.isChecked())
+                settings.setValue("enable_lmstudio", self.lmstudio_enabled_check.isChecked())
+                settings.setValue("enable_koboldcpp", self.koboldcpp_enabled_check.isChecked())
+                settings.setValue("enable_openrouter", self.openrouter_enabled_check.isChecked())
+
                 # Save provider endpoints
                 ollama_base = self.ollama_api_base_input.text().strip()
                 if ollama_base:
@@ -3518,10 +3567,57 @@ class MainWindow(QMainWindow):
             self.logger.info("ConfigDialog closed with result=%s", result)
             if result == QDialog.DialogCode.Accepted:
                 self.logger.info("ConfigDialog accepted; settings saved")
+                self.reload_models()
             else:
                 self.logger.info("ConfigDialog rejected or closed without saving")
         except Exception:
             self.logger.exception("Error while opening ConfigDialog")
+
+    def reload_models(self):
+        self.logger.info("Reloading models after configuration change")
+        try:
+            settings = QSettings("deskriders", "chatcircuit")
+            discovered_models, counts = preload_models(settings)
+
+            global LLM_MODELS, DEFAULT_LLM_MODEL
+            if discovered_models:
+                LLM_MODELS = discovered_models
+                DEFAULT_LLM_MODEL = LLM_MODELS[0]
+                self.logger.info("Models reloaded: %s models found", len(LLM_MODELS))
+            else:
+                self.logger.warning("No models found after reload")
+                LLM_MODELS = []
+                DEFAULT_LLM_MODEL = None
+
+            # Update existing dropdowns
+            self.update_all_dropdowns()
+
+        except Exception:
+            self.logger.exception("Error while reloading models")
+
+    def update_all_dropdowns(self):
+        self.logger.info("Updating all model dropdowns")
+        count = 0
+        for item in self.scene.items():
+            if isinstance(item, FormWidget):
+                try:
+                    current_model = item.header.model_dropdown.currentText()
+                    item.header.model_dropdown.blockSignals(True)
+                    item.header.model_dropdown.clear()
+                    item.header.model_dropdown.addItems(LLM_MODELS)
+
+                    # Restore selection if possible
+                    index = item.header.model_dropdown.findText(current_model)
+                    if index >= 0:
+                        item.header.model_dropdown.setCurrentIndex(index)
+                    elif LLM_MODELS:
+                        item.header.model_dropdown.setCurrentIndex(0)
+
+                    item.header.model_dropdown.blockSignals(False)
+                    count += 1
+                except Exception:
+                    self.logger.exception("Error updating dropdown for form")
+        self.logger.info("Updated dropdowns for %d forms", count)
 
     def on_arrange_tree(self):
         self.logger.info("MainWindow.on_arrange_tree: arranging forms in tree layout")
