@@ -75,16 +75,27 @@ All providers are auto-discovered at startup. The app will work with any combina
 2. Launch Chat Circuit - models will be automatically discovered
 3. Select a model from the dropdown in any conversation node
 
-**Custom Endpoints:**
+**Configuring Provider Endpoints:**
 
-See `provider-config.example.sh` for detailed configuration examples.
+You can configure provider endpoints in two ways:
 
-```bash
-# Example: Run with custom endpoints
-OLLAMA_API_BASE="http://192.168.1.100:11434" \
-LMSTUDIO_API_BASE="http://localhost:1234/v1" \
-python3 main.py
-```
+1. **Via Configuration Dialog (Recommended)**: 
+   - Open Configuration via menu: `Configuration > API Keys...` or press `Ctrl+,`
+   - Enter custom endpoints for Ollama, LMStudio, and KoboldCpp
+   - Settings are saved automatically and persist across sessions
+
+2. **Via Environment Variables** (fallback if not set in UI):
+   ```bash
+   # Example: Run with custom endpoints via environment variables
+   OLLAMA_API_BASE="http://192.168.1.100:11434" \
+   LMSTUDIO_API_BASE="http://localhost:1234/v1" \
+   KOBOLDCPP_API_BASE="http://localhost:5001/v1" \
+   python3 main.py
+   ```
+
+See `provider-config.example.sh` for more detailed configuration examples.
+
+**Configuration Priority**: UI Settings > Environment Variables > Defaults
 
 ### Running the Application
 
