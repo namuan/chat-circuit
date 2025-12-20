@@ -525,11 +525,14 @@ def preload_models(settings: QSettings | None = None) -> tuple[list[str], dict[s
 
     # Log partial failures explicitly for visibility
     if not ollama:
-        logger.error("Ollama discovery returned no models. Ensure Ollama is running at http://localhost:11434.")
+        ollama_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+        logger.error("Ollama discovery returned no models. Ensure Ollama is running at %s.", ollama_base)
     if not lmstudio:
-        logger.warning("LMStudio discovery returned no models. Ensure LMStudio is running at http://localhost:1234.")
+        lmstudio_base = os.getenv("LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+        logger.warning("LMStudio discovery returned no models. Ensure LMStudio is running at %s.", lmstudio_base)
     if not koboldcpp:
-        logger.warning("KoboldCpp discovery returned no models. Ensure KoboldCpp is running at http://localhost:5001.")
+        koboldcpp_base = os.getenv("KOBOLDCPP_API_BASE", "http://localhost:5001/v1")
+        logger.warning("KoboldCpp discovery returned no models. Ensure KoboldCpp is running at %s.", koboldcpp_base)
     if not openrouter_free:
         logger.error(
             "OpenRouter discovery returned no free models. Set OPENROUTER_API_KEY or check network connectivity."
