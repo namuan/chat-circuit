@@ -3430,6 +3430,11 @@ class MainWindow(QMainWindow):
         save_action.triggered.connect(self.save_state)
         file_menu.addAction(save_action)
 
+        save_as_action = QAction("Save As...", self)
+        save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
+        save_as_action.triggered.connect(self.save_as_state)
+        file_menu.addAction(save_as_action)
+
         load_action = QAction("Load", self)
         load_action.setShortcut(QKeySequence.StandardKey.Open)
         load_action.triggered.connect(self.load_state)
@@ -3677,12 +3682,27 @@ class MainWindow(QMainWindow):
         file_name = self.state_manager.get_last_file()
         if not file_name:
             self.logger.debug("No previous file found, opening save dialog")
-            file_name, _ = QFileDialog.getSaveFileName(self, "Save File", "", "JSON Files (*.json)")
+            file_name, _ = QFileDialog.getSaveFileName(
+                self, "Save File", "", "Chat Files (*.chat);;JSON Files (*.json)"
+            )
 
         if not file_name:
             self.logger.info("Save operation cancelled by user")
             return
 
+        self._save_to_file(file_name)
+
+    def save_as_state(self):
+        self.logger.info("Initiating save as operation")
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save As", "", "Chat Files (*.chat);;JSON Files (*.json)")
+
+        if not file_name:
+            self.logger.info("Save as operation cancelled by user")
+            return
+
+        self._save_to_file(file_name)
+
+    def _save_to_file(self, file_name):
         self.logger.info("Saving state to file: %s", file_name)
 
         try:
@@ -3708,7 +3728,9 @@ class MainWindow(QMainWindow):
 
     def load_state(self):
         self.logger.info("Initiating load state operation")
-        file_name, _ = QFileDialog.getOpenFileName(self, "Open File", "", "JSON Files (*.json)")
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Open File", "", "Chat Files (*.chat *.json);;Chat Files (*.chat);;JSON Files (*.json)"
+        )
 
         if not file_name:
             self.logger.info("Load operation cancelled by user")
