@@ -285,28 +285,6 @@ def strip_provider_prefix(model_str: str) -> str:
     return model_str
 
 
-def _get_openrouter_api_key(settings: QSettings | None, logger) -> str | None:
-    api_key: str | None = None
-    # Prefer QSettings value if provided
-    if settings is not None:
-        try:
-            val = settings.value("openrouter_api_key")
-            if isinstance(val, str) and val.strip():
-                api_key = val.strip()
-                logger.debug("OpenRouter API key fetched from QSettings")
-        except Exception:
-            logger.exception("Failed reading OpenRouter API key from QSettings")
-
-    # Fallback to environment variable
-    if not api_key:
-        env_key = os.getenv("OPENROUTER_API_KEY")
-        if env_key and env_key.strip():
-            api_key = env_key.strip()
-            logger.debug("OpenRouter API key fetched from environment")
-
-    return api_key
-
-
 def build_llm_call_config(model_str: str, settings: QSettings | None = None) -> dict:
     """
     Build a LiteLLM call configuration based on the provider inferred from the model string.
@@ -333,7 +311,7 @@ def build_llm_call_config(model_str: str, settings: QSettings | None = None) -> 
         config["model"] = f"openrouter/{raw_model}"
         config["api_base"] = "https://openrouter.ai/api/v1"
 
-        api_key = _get_openrouter_api_key(settings, logger)
+        api_key = _get_openrouter_api_key(settings)
         if api_key:
             config["api_key"] = api_key
         else:
@@ -669,7 +647,11 @@ def startup_dynamic_model_init() -> None:
                         "- KoboldCpp at http://localhost:5001\n"
                         "- Or set OPENROUTER_API_KEY for OpenRouter",
                     )
-                elif counts.get("ollama", 0) == 0 and total_discovered > 0:
+                elif (
+                    counts.get("ollama", 0) == 0
+                    and total_discovered > 0
+                    and _is_enabled(startup_settings, "enable_ollama")
+                ):
                     QMessageBox.warning(
                         None,
                         "Model Discovery Warning",
