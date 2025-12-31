@@ -3325,18 +3325,28 @@ class MainWindow(QMainWindow):
             return
         self.is_updating_scene_rect = True
 
-        # Calculate the bounding rect of all items
+        # Calculate the bounding rect of all FormWidget (chat window) items
         items_rect = QRectF()
+        has_form_widgets = False
         for item in self.scene.items():
-            items_rect = items_rect.united(item.sceneBoundingRect())
+            if isinstance(item, FormWidget):
+                has_form_widgets = True
+                items_rect = items_rect.united(item.sceneBoundingRect())
 
-        # Add some margin
-        margin = 1000
-        new_rect = items_rect.adjusted(-margin, -margin, margin, margin)
+        # If we have chat windows, fit them in view with some margin
+        if has_form_widgets and not items_rect.isEmpty():
+            # Add some margin
+            margin = 100
+            new_rect = items_rect.adjusted(-margin, -margin, margin, margin)
 
-        # Update the scene rect
-        self.scene.setSceneRect(new_rect)
-        self.view.updateSceneRect(new_rect)
+            # Update the scene rect
+            self.scene.setSceneRect(new_rect)
+            self.view.updateSceneRect(new_rect)
+
+            # Fit the view to show all chat windows
+            self.view.fitInView(new_rect, Qt.AspectRatioMode.KeepAspectRatio)
+            self.view.update_zoom_factor()
+            self.view.update_minimap()
 
         self.is_updating_scene_rect = False
 
